@@ -19,3 +19,4 @@ export async function GET(
     status: result.success ? 200 : result.isKeyMissing ? 200 : 400,
   });
 }
+
