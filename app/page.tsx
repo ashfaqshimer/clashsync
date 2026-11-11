@@ -15,7 +15,6 @@ import {
   RotateCcw,
   Wrench,
   Zap,
-  Database,
   Search,
   Shield,
   Loader2,
@@ -33,7 +32,7 @@ export default function Home() {
   const [playerProfile, setPlayerProfile] = useState<ClashPlayerProfile | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [dbSavedNotice, setDbSavedNotice] = useState<string | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
@@ -51,7 +50,7 @@ export default function Home() {
 
   const handleLoadSample = () => {
     setJsonInput(SAMPLE_VILLAGE_JSON);
-    setCopyFeedback("Sample village JSON loaded!");
+    setCopyFeedback("Sample village loaded!");
     setTimeout(() => setCopyFeedback(null), 2500);
   };
 
@@ -59,14 +58,14 @@ export default function Home() {
     setJsonInput("");
     setParseResult(null);
     setCopyFeedback(null);
-    setDbSavedNotice(null);
+    setSyncNotice(null);
     setApiError(null);
   };
 
-  // Parse local preview & save to Neon Postgres
+  // Parse local preview & sync village
   const handleParseAndSave = async () => {
     setApiError(null);
-    setDbSavedNotice(null);
+    setSyncNotice(null);
 
     // 1. Client-side parse first for instant UI response
     const localResult = parseVillageExport(jsonInput);
@@ -76,7 +75,7 @@ export default function Home() {
       return;
     }
 
-    // 2. Persist to Neon Database via API
+    // 2. Persist to storage via API
     setIsSaving(true);
     try {
       const res = await fetch("/api/village/sync", {
@@ -87,21 +86,21 @@ export default function Home() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setDbSavedNotice(
-          `Successfully saved ${data.totalActiveUpgrades} active upgrades to Neon DB for ${data.playerTag}!`
+        setSyncNotice(
+          `Village synced! Tracking ${data.totalActiveUpgrades} active upgrades for ${data.playerTag}.`
         );
       } else {
-        setApiError(data.error || "Failed to save to database");
+        setApiError(data.error || "Failed to sync village");
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Network error";
-      setApiError(`Could not reach database sync API: ${message}`);
+      setApiError(`Unable to sync village right now: ${message}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Lookup player tag via official API and load saved upgrades from DB
+  // Lookup player tag via official API and load saved upgrades
   const handleLookupPlayerTag = async () => {
     if (!playerTagInput.trim()) return;
 
@@ -125,7 +124,7 @@ export default function Home() {
         setApiError(profileData.error);
       }
 
-      // 2. Fetch saved active upgrades from Neon DB for this tag
+      // 2. Fetch saved active upgrades for this tag
       const dbRes = await fetch(`/api/village/upgrades?tag=${encodeURIComponent(formattedTag)}`);
       const dbData = await dbRes.json();
 
@@ -153,7 +152,7 @@ export default function Home() {
           ).length,
           upgrades: dbData.upgrades,
         });
-        setDbSavedNotice(`Loaded active queues from database for ${formattedTag}`);
+        setSyncNotice(`Loaded tracked upgrades for ${formattedTag}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Network error";
@@ -216,13 +215,12 @@ export default function Home() {
                 <span className="text-xl font-bold tracking-tight text-white">
                   Clash<span className="text-amber-400">Sync</span>
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full flex items-center gap-1">
-                  <Database className="w-2.5 h-2.5" />
-                  Phase 2: DB Sync
+                <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">
+                  Live Tracker
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Clash of Clans Queue Sync & Neon Postgres Storage
+                Clash of Clans Village & Queue Tracker
               </p>
             </div>
           </div>
@@ -231,7 +229,7 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Navigation Tabs between Village JSON & Player Tag */}
+        {/* Navigation Tabs between Village Data & Player Tag */}
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 sm:p-8 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -239,19 +237,19 @@ export default function Home() {
                 {activeTab === "json" ? (
                   <>
                     <FileCode2 className="w-5 h-5 text-amber-400" />
-                    Village Data Ingestion & Database Sync
+                    Sync Village
                   </>
                 ) : (
                   <>
                     <Search className="w-5 h-5 text-sky-400" />
-                    Player Tag Lookup & Cloud Tracker
+                    Player Tag Lookup
                   </>
                 )}
               </h1>
               <p className="text-xs text-slate-400 mt-1">
                 {activeTab === "json"
-                  ? "Paste your exported village JSON to parse and persist active timers directly into your Neon PostgreSQL database."
-                  : "Search your player tag to load profile info and retrieve existing synced timers."}
+                  ? "Paste your village export data to track all active builders, laboratory research, and pet upgrades."
+                  : "Search your player tag to view your village profile and tracked timers."}
               </p>
             </div>
 
@@ -265,7 +263,7 @@ export default function Home() {
                     : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200"
                 }`}
               >
-                Village JSON
+                Export Data
               </button>
 
               <button
@@ -277,7 +275,7 @@ export default function Home() {
                     : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200"
                 }`}
               >
-                Player Tag (#)
+                Player Tag
               </button>
             </div>
           </div>
@@ -285,8 +283,8 @@ export default function Home() {
           {activeTab === "json" ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-slate-500 font-mono">
-                  Export Village JSON (Settings → More Settings → Data Export)
+                <span className="text-xs text-slate-500">
+                  In-game: Settings → More Settings → Export Village data → Copy
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -296,7 +294,7 @@ export default function Home() {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-medium transition cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Load Sample JSON</span>
+                    <span>Load Sample</span>
                   </button>
 
                   <button
@@ -325,7 +323,7 @@ export default function Home() {
                 rows={7}
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
-                placeholder='Paste raw JSON export here (e.g. {"tag": "#R8L9R2GVG", "timestamp": 1794389689, "buildings": [...]})'
+                placeholder='Paste your village export data here (e.g. {"tag": "#R8L9R2GVG", ...})'
                 className="w-full p-4 bg-slate-950/90 border border-slate-800 rounded-xl font-mono text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/80 transition"
               />
 
@@ -334,7 +332,7 @@ export default function Home() {
                   {copyFeedback ? (
                     <span className="text-amber-400 font-medium">{copyFeedback}</span>
                   ) : (
-                    <span>Saves active queues to your Neon PostgreSQL database.</span>
+                    <span>Automatically tracks and calculates exact finish times.</span>
                   )}
                 </div>
 
@@ -347,11 +345,11 @@ export default function Home() {
                   {isSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Saving to DB...</span>
+                      <span>Syncing Village...</span>
                     </>
                   ) : (
                     <>
-                      <span>Parse & Sync to DB</span>
+                      <span>Sync Village</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -431,13 +429,13 @@ export default function Home() {
           )}
         </section>
 
-        {/* Database Sync Notice Banner */}
-        {dbSavedNotice && (
+        {/* Sync Success Banner */}
+        {syncNotice && (
           <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3 text-emerald-300 text-xs animate-fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <div className="flex-1 font-medium">{dbSavedNotice}</div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
-              Neon PostgreSQL
+            <div className="flex-1 font-medium">{syncNotice}</div>
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
+              Synced
             </span>
           </div>
         )}
@@ -447,7 +445,7 @@ export default function Home() {
           <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-start gap-3 text-rose-300 text-xs">
             <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-rose-400" />
             <div>
-              <p className="font-semibold text-rose-200">Error</p>
+              <p className="font-semibold text-rose-200">Notice</p>
               <p className="mt-0.5">{apiError}</p>
             </div>
           </div>
@@ -570,7 +568,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-slate-800/60 py-6 text-center text-xs text-slate-600 mt-auto">
         <p>
-          ClashSync — Powered by Next.js & Neon Serverless PostgreSQL.
+          ClashSync — Unofficial Clash of Clans companion tool.
         </p>
       </footer>
     </div>
