@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Sparkles,
   RotateCcw,
+  Wrench,
+  Zap,
 } from "lucide-react";
 import { parseVillageExport } from "@/lib/parser";
 import { SAMPLE_VILLAGE_JSON } from "@/lib/sample-data";
@@ -73,6 +75,13 @@ export default function Home() {
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <PawPrint className="w-3 h-3" />
             Pet House
+          </span>
+        );
+      case "BUILDER_BASE":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+            <Wrench className="w-3 h-3" />
+            Builder Base
           </span>
         );
       default:
@@ -162,7 +171,7 @@ export default function Home() {
               rows={7}
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
-              placeholder='Paste raw JSON export here (e.g. {"tag": "#9PR8Y2QL", "timestamp": 1731317000, "buildings": [...]})'
+              placeholder='Paste raw JSON export here (e.g. {"tag": "#R8L9R2GVG", "timestamp": 1794389689, "buildings": [...]})'
               className="w-full p-4 bg-slate-950/90 border border-slate-800 rounded-xl font-mono text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/80 transition"
             />
           </div>
@@ -172,7 +181,7 @@ export default function Home() {
               {copyFeedback ? (
                 <span className="text-amber-400 font-medium">{copyFeedback}</span>
               ) : (
-                <span>Extracts active builders, laboratory, and pet timers.</span>
+                <span>Extracts active builders, heroes, laboratory, pets, and builder base timers.</span>
               )}
             </div>
 
@@ -215,19 +224,19 @@ export default function Home() {
 
                   <div className="space-y-0.5">
                     <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
-                      Active Builders
+                      Home Village
                     </p>
                     <p className="text-sm font-bold text-amber-400">
-                      {parseResult.builderUpgradesCount} busy
+                      {parseResult.builderUpgradesCount} Builders · {parseResult.labUpgradesCount} Lab · {parseResult.petUpgradesCount} Pet
                     </p>
                   </div>
 
                   <div className="space-y-0.5">
                     <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
-                      Lab / Pets Active
+                      Builder Base
                     </p>
-                    <p className="text-sm font-bold text-slate-200">
-                      {parseResult.labUpgradesCount} Lab · {parseResult.petUpgradesCount} Pet
+                    <p className="text-sm font-bold text-sky-400">
+                      {parseResult.builderBaseUpgradesCount} Active
                     </p>
                   </div>
                 </div>
@@ -261,6 +270,12 @@ export default function Home() {
                                   {item.name}
                                 </h3>
                                 {getCategoryBadge(item.category)}
+                                {item.isGoblinOrHelper && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    <Zap className="w-2.5 h-2.5" />
+                                    Extra Slot / Goblin
+                                  </span>
+                                )}
                               </div>
                               <p className="text-xs text-slate-400 mt-0.5 font-mono">
                                 Level: {item.currentLevel} →{" "}

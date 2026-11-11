@@ -32,6 +32,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
       builderUpgradesCount: 0,
       labUpgradesCount: 0,
       petUpgradesCount: 0,
+      builderBaseUpgradesCount: 0,
       upgrades: [],
       error: "Village data is empty. Please paste your JSON payload.",
     };
@@ -48,6 +49,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
       builderUpgradesCount: 0,
       labUpgradesCount: 0,
       petUpgradesCount: 0,
+      builderBaseUpgradesCount: 0,
       upgrades: [],
       error: `Invalid JSON format: ${message}`,
     };
@@ -76,6 +78,8 @@ export function parseVillageExport(rawJson: string): ParseResult {
   ) => {
     if (!Array.isArray(items)) return;
 
+    const isBuilderBase = sectionName.endsWith("2");
+
     items.forEach((item, index) => {
       // Check for active timer
       const timer = typeof item.timer === "number" ? item.timer : 0;
@@ -84,6 +88,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
         const currentLvl = Number(item.lvl || item.level || 0);
         const targetLvl = currentLvl + 1;
         const isGearUp = Boolean(item.gear_up);
+        const isGoblinOrHelper = Boolean(item.extra);
 
         const entity = resolveEntity(rawDataId, item.name, sectionName);
         const originalFinishTime = exportTimestamp + timer;
@@ -96,11 +101,16 @@ export function parseVillageExport(rawJson: string): ParseResult {
           timeStyle: "short",
         });
 
+        let displayName = entity.name;
+        if (isGearUp) displayName += " (Gear-Up)";
+        if (isGoblinOrHelper) displayName += " (Goblin/Extra)";
+
         upgrades.push({
           id: `${sectionName}-${rawDataId}-${index}-${exportTimestamp}`,
           dataId: rawDataId,
-          name: isGearUp ? `${entity.name} (Gear-Up)` : entity.name,
+          name: displayName,
           category: entity.category,
+          villageType: isBuilderBase ? "BUILDER_BASE" : "HOME",
           currentLevel: currentLvl,
           targetLevel: targetLvl,
           remainingSeconds: timer,
@@ -109,12 +119,13 @@ export function parseVillageExport(rawJson: string): ParseResult {
           formattedRemaining: formatDuration(timer),
           formattedFinishTime,
           isGearUp,
+          isGoblinOrHelper,
         });
       }
     });
   };
 
-  // Process standard CoC exported collections
+  // Process Home Village collections
   processSection(data.buildings, "buildings");
   processSection(data.heroes, "heroes");
   processSection(data.units, "units");
@@ -122,7 +133,13 @@ export function parseVillageExport(rawJson: string): ParseResult {
   processSection(data.pets, "pets");
   processSection(data.traps, "traps");
 
-  // Fallback: check if the top-level is directly an array of items with timers
+  // Process Builder Base collections
+  processSection(data.buildings2, "buildings2");
+  processSection(data.heroes2, "heroes2");
+  processSection(data.units2, "units2");
+  processSection(data.traps2, "traps2");
+
+  // Fallback: check if the top-level is directly an array
   if (Array.isArray(data)) {
     processSection(data as RawVillageItem[], "items");
   }
@@ -139,6 +156,9 @@ export function parseVillageExport(rawJson: string): ParseResult {
   const petUpgradesCount = upgrades.filter(
     (u) => u.category === "PET_HOUSE"
   ).length;
+  const builderBaseUpgradesCount = upgrades.filter(
+    (u) => u.category === "BUILDER_BASE"
+  ).length;
 
   return {
     success: true,
@@ -149,6 +169,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
     builderUpgradesCount,
     labUpgradesCount,
     petUpgradesCount,
+    builderBaseUpgradesCount,
     upgrades,
   };
 }

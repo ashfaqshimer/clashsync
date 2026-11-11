@@ -1,4 +1,9 @@
-export type UpgradeType = "BUILDER" | "LABORATORY" | "PET_HOUSE" | "OTHER";
+export type UpgradeType =
+  | "BUILDER"
+  | "LABORATORY"
+  | "PET_HOUSE"
+  | "BUILDER_BASE"
+  | "OTHER";
 
 export interface RawVillageItem {
   data?: number;
@@ -9,6 +14,7 @@ export interface RawVillageItem {
   timer?: number; // Remaining seconds until completion
   cnt?: number;
   gear_up?: number;
+  extra?: boolean; // Goblin builder / apprentice / secondary slot
   [key: string]: unknown;
 }
 
@@ -21,6 +27,12 @@ export interface RawExportVillage {
   spells?: RawVillageItem[];
   pets?: RawVillageItem[];
   traps?: RawVillageItem[];
+  buildings2?: RawVillageItem[];
+  heroes2?: RawVillageItem[];
+  units2?: RawVillageItem[];
+  traps2?: RawVillageItem[];
+  helpers?: RawVillageItem[];
+  boosts?: Record<string, number>;
   [key: string]: unknown;
 }
 
@@ -29,6 +41,7 @@ export interface ActiveUpgrade {
   dataId: number;
   name: string;
   category: UpgradeType;
+  villageType: "HOME" | "BUILDER_BASE";
   currentLevel: number;
   targetLevel: number;
   remainingSeconds: number;
@@ -37,6 +50,7 @@ export interface ActiveUpgrade {
   formattedRemaining: string;
   formattedFinishTime: string;
   isGearUp?: boolean;
+  isGoblinOrHelper?: boolean;
 }
 
 export interface ParseResult {
@@ -48,6 +62,7 @@ export interface ParseResult {
   builderUpgradesCount: number;
   labUpgradesCount: number;
   petUpgradesCount: number;
+  builderBaseUpgradesCount: number;
   upgrades: ActiveUpgrade[];
   error?: string;
 }
