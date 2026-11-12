@@ -45,6 +45,46 @@ export interface PlayerLookupResult {
   isKeyMissing?: boolean;
 }
 
+/**
+ * Supercell API keys are locked to fixed IPs, but neither Vercel nor home
+ * connections have one. All calls go through RoyaleAPI's IP-stable proxy,
+ * which forwards to api.clashofclans.com. CLASH_API_KEY must whitelist the
+ * proxy's IP (see docs.royaleapi.com), not our own.
+ */
+const API_BASE = "https://cocproxy.royaleapi.dev/v1";
+
+/**
+ * Local-dev mock: no key or network needed. Never active in production
+ * builds, since mock verification would let anyone claim any village.
+ */
+const MOCK =
+  process.env.CLASH_API_MOCK === "1" && process.env.NODE_ENV !== "production";
+
+/** In mock mode, this token fails verification so the error path can be tested. */
+const MOCK_INVALID_TOKEN = "invalid";
+
+function apiKey(): string | undefined {
+  return process.env.CLASH_API_KEY || process.env.COC_API_KEY;
+}
+
+function mockProfile(tag: string): ClashPlayerProfile {
+  return {
+    tag,
+    name: "Mock Chief",
+    townHallLevel: 16,
+    builderHallLevel: 10,
+    expLevel: 220,
+    trophies: 5100,
+    bestTrophies: 5600,
+    warStars: 1400,
+    clan: { tag: "#2PP", name: "Mock Clan", clanLevel: 20 },
+    heroes: [
+      { name: "Barbarian King", level: 77, maxLevel: 95, village: "home" },
+      { name: "Archer Queen", level: 86, maxLevel: 95, village: "home" },
+    ],
+  };
+}
+
 export type VerifyTokenResult =
   | { ok: true }
   | { ok: false; reason: "invalid" | "key_missing" | "error"; error: string };
@@ -58,8 +98,18 @@ export async function verifyPlayerToken(
   tag: string,
   token: string
 ): Promise<VerifyTokenResult> {
-  const apiKey = process.env.CLASH_API_KEY || process.env.COC_API_KEY;
-  if (!apiKey) {
+  if (MOCK) {
+    return token.trim() === MOCK_INVALID_TOKEN
+      ? {
+          ok: false,
+          reason: "invalid",
+          error: "That token didn't match. Tokens expire quickly, so copy a fresh one.",
+        }
+      : { ok: true };
+  }
+
+  const key = apiKey();
+  if (!key) {
     return {
       ok: false,
       reason: "key_missing",
@@ -69,11 +119,11 @@ export async function verifyPlayerToken(
 
   try {
     const res = await fetch(
-      `https://api.clashofclans.com/v1/players/${encodeURIComponent(tag)}/verifytoken`,
+      `${API_BASE}/players/${encodeURIComponent(tag)}/verifytoken`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${key}`,
           Accept: "application/json",
           "Content-Type": "application/json",
         },
@@ -111,9 +161,18 @@ export async function verifyPlayerToken(
  * Fetches public player information from the official Clash of Clans Developer API.
  */
 export async function fetchPlayerProfile(rawTag: string): Promise<PlayerLookupResult> {
-  const apiKey = process.env.CLASH_API_KEY || process.env.COC_API_KEY;
+  // Ensure leading '#' is present and format tag for URL encoding
+  const formattedTag = rawTag.trim().startsWith("#")
+    ? rawTag.trim()
+    : `#${rawTag.trim()}`;
+  const encodedTag = encodeURIComponent(formattedTag);
 
-  if (!apiKey) {
+  if (MOCK) {
+    return { success: true, player: mockProfile(formattedTag.toUpperCase()) };
+  }
+
+  const key = apiKey();
+  if (!key) {
     return {
       success: false,
       isKeyMissing: true,
@@ -122,18 +181,12 @@ export async function fetchPlayerProfile(rawTag: string): Promise<PlayerLookupRe
     };
   }
 
-  // Ensure leading '#' is present and format tag for URL encoding
-  const formattedTag = rawTag.trim().startsWith("#")
-    ? rawTag.trim()
-    : `#${rawTag.trim()}`;
-  const encodedTag = encodeURIComponent(formattedTag);
-
   try {
     const res = await fetch(
-      `https://api.clashofclans.com/v1/players/${encodedTag}`,
+      `${API_BASE}/players/${encodedTag}`,
       {
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${key}`,
           Accept: "application/json",
         },
         cache: "no-store",
@@ -151,7 +204,7 @@ export async function fetchPlayerProfile(rawTag: string): Promise<PlayerLookupRe
       return {
         success: false,
         error:
-          "Supercell API key rejected (403 Forbidden). Ensure your IP address is whitelisted on developer.clashofclans.com.",
+          "Supercell API key rejected (403 Forbidden). Ensure the RoyaleAPI proxy IP is whitelisted on your key at developer.clashofclans.com.",
       };
     }
 

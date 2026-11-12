@@ -38,7 +38,8 @@ lib/
   parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side
   clash-data.ts    CLASH_ENTITIES: numeric data ID → {name, category}; resolveEntity() fallback heuristics by section
   types.ts         Raw export shapes (RawExportVillage / RawVillageItem) + ActiveUpgrade / ParseResult
-  clash-api.ts     fetchPlayerProfile(tag) against api.clashofclans.com (needs CLASH_API_KEY + whitelisted IP)
+  clash-api.ts     fetchPlayerProfile / verifyPlayerToken. Always via RoyaleAPI proxy (cocproxy.royaleapi.dev), so
+                   CLASH_API_KEY whitelists the proxy IP and works locally + on Vercel. CLASH_API_MOCK=1 fakes both in dev (never in prod)
   db/schema.ts     Drizzle tables: users, upgrades
   db/index.ts      db client; forces IPv4-first DNS; falls back to loading .env.local itself
   sample-data.ts   SAMPLE_VILLAGE_JSON for demos
