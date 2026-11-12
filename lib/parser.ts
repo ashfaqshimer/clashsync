@@ -1,6 +1,8 @@
 import { resolveEntity } from "./clash-data";
 import { ActiveUpgrade, ParseResult, RawExportVillage, RawVillageItem } from "./types";
 
+const BUILDERS_HUT_ID = 1000015;
+
 /**
  * Formats a duration in seconds into a friendly string (e.g. "2d 14h 32m 10s").
  */
@@ -144,6 +146,13 @@ export function parseVillageExport(rawJson: string): ParseResult {
     processSection(data as RawVillageItem[], "items");
   }
 
+  // Builder's Hut carries a `cnt` when the export lists it
+  const hut = Array.isArray(data.buildings)
+    ? data.buildings.find((b) => Number(b.data) === BUILDERS_HUT_ID)
+    : undefined;
+  const builderHutCount =
+    hut && typeof hut.cnt === "number" && hut.cnt > 0 ? hut.cnt : undefined;
+
   // Sort by finish time ascending (soonest first)
   upgrades.sort((a, b) => a.currentFinishTime - b.currentFinishTime);
 
@@ -170,6 +179,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
     labUpgradesCount,
     petUpgradesCount,
     builderBaseUpgradesCount,
+    builderHutCount,
     upgrades,
   };
 }

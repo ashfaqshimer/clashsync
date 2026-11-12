@@ -3,6 +3,8 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, upgrades } from "@/lib/db/schema";
 import { parseVillageExport } from "@/lib/parser";
+import { ownsTag } from "@/lib/ownership";
+import { normalizeTag, tagToSlug } from "@/lib/tags";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +27,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const playerTag = parseResult.playerTag || body.playerTag || "#UNKNOWN";
+    const playerTag = normalizeTag(parseResult.playerTag || body.playerTag);
+    if (!playerTag) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "We couldn't find your player tag in this export. Copy the full export from the game and try again.",
+        },
+        { status: 400 }
+      );
+    }
     const exportTimestamp = parseResult.exportTimestamp || Math.floor(Date.now() / 1000);
 
     // 1. Find or create user
@@ -35,6 +47,17 @@ export async function POST(request: NextRequest) {
       .where(eq(users.playerTag, playerTag))
       .limit(1);
 
+    // A verified village can only be updated from a browser that proved ownership
+    if (existingUsers[0]?.verifiedAt && !(await ownsTag(playerTag))) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `${playerTag} is protected by its owner. Verify ownership on the village page to sync it from this device.`,
+        },
+        { status: 403 }
+      );
+    }
+
     let userId: string;
 
     if (existingUsers.length > 0) {
@@ -43,6 +66,9 @@ export async function POST(request: NextRequest) {
         .update(users)
         .set({
           lastExportTimestamp: exportTimestamp,
+          ...(parseResult.builderHutCount
+            ? { builderCount: parseResult.builderHutCount }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId));
@@ -52,6 +78,7 @@ export async function POST(request: NextRequest) {
         id: userId,
         playerTag,
         lastExportTimestamp: exportTimestamp,
+        builderCount: parseResult.builderHutCount ?? null,
       });
     }
 
@@ -91,6 +118,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       playerTag,
+      dashboardPath: `/v/${tagToSlug(playerTag)}`,
       userId,
       exportTimestamp,
       totalActiveUpgrades: parseResult.totalActiveUpgrades,

@@ -45,6 +45,68 @@ export interface PlayerLookupResult {
   isKeyMissing?: boolean;
 }
 
+export type VerifyTokenResult =
+  | { ok: true }
+  | { ok: false; reason: "invalid" | "key_missing" | "error"; error: string };
+
+/**
+ * Checks the one-time API token shown in-game (Settings → More Settings →
+ * API Token) against the player's tag. A valid token proves the caller has
+ * access to that account. `tag` must already be normalized ("#XXXX").
+ */
+export async function verifyPlayerToken(
+  tag: string,
+  token: string
+): Promise<VerifyTokenResult> {
+  const apiKey = process.env.CLASH_API_KEY || process.env.COC_API_KEY;
+  if (!apiKey) {
+    return {
+      ok: false,
+      reason: "key_missing",
+      error: "Ownership checks are not available yet. Please try again later.",
+    };
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.clashofclans.com/v1/players/${encodeURIComponent(tag)}/verifytoken`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token: token.trim() }),
+        cache: "no-store",
+      }
+    );
+
+    if (res.status === 404) {
+      return { ok: false, reason: "invalid", error: `Player ${tag} was not found.` };
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        reason: "error",
+        error: `Couldn't reach Clash of Clans right now (HTTP ${res.status}).`,
+      };
+    }
+
+    const data: { status?: string } = await res.json();
+    return data.status === "ok"
+      ? { ok: true }
+      : {
+          ok: false,
+          reason: "invalid",
+          error: "That token didn't match. Tokens expire quickly, so copy a fresh one.",
+        };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Network error";
+    return { ok: false, reason: "error", error: `Couldn't reach Clash of Clans: ${message}` };
+  }
+}
+
 /**
  * Fetches public player information from the official Clash of Clans Developer API.
  */

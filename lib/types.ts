@@ -63,6 +63,7 @@ export interface ParseResult {
   labUpgradesCount: number;
   petUpgradesCount: number;
   builderBaseUpgradesCount: number;
+  builderHutCount?: number; // Home village Builder's Huts, if the export lists them
   upgrades: ActiveUpgrade[];
   error?: string;
 }

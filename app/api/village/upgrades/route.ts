@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, upgrades } from "@/lib/db/schema";
 import { formatDuration } from "@/lib/parser";
+import { normalizeTag } from "@/lib/tags";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -15,7 +16,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const formattedTag = tag.trim().startsWith("#") ? tag.trim() : `#${tag.trim()}`;
+  const formattedTag = normalizeTag(tag);
+  if (!formattedTag) {
+    return NextResponse.json(
+      { success: false, error: "That doesn't look like a valid player tag." },
+      { status: 400 }
+    );
+  }
 
   try {
     const existingUsers = await db

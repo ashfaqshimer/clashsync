@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Hammer,
   FlaskConical,
@@ -33,6 +34,7 @@ export default function Home() {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [dashboardPath, setDashboardPath] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
@@ -89,6 +91,7 @@ export default function Home() {
         setSyncNotice(
           `Village synced! Tracking ${data.totalActiveUpgrades} active upgrades for ${data.playerTag}.`
         );
+        setDashboardPath(data.dashboardPath ?? null);
       } else {
         setApiError(data.error || "Failed to sync village");
       }
@@ -152,7 +155,8 @@ export default function Home() {
           ).length,
           upgrades: dbData.upgrades,
         });
-        setSyncNotice(`Loaded tracked upgrades for ${formattedTag}`);
+        setSyncNotice(`Loaded tracked upgrades for ${dbData.playerTag}`);
+        setDashboardPath(`/v/${String(dbData.playerTag).replace(/^#/, "")}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Network error";
@@ -434,9 +438,19 @@ export default function Home() {
           <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3 text-emerald-300 text-xs animate-fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <div className="flex-1 font-medium">{syncNotice}</div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
-              Synced
-            </span>
+            {dashboardPath ? (
+              <Link
+                href={dashboardPath}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1 rounded transition"
+              >
+                Open live dashboard
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
+                Synced
+              </span>
+            )}
           </div>
         )}
 

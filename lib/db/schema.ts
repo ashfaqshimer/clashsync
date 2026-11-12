@@ -20,6 +20,8 @@ export const users = pgTable(
     discordUserId: text("discord_user_id"),
     discordWebhookUrl: text("discord_webhook_url"),
     lastExportTimestamp: bigint("last_export_timestamp", { mode: "number" }),
+    builderCount: integer("builder_count"), // From Builder's Hut count in the export, when present
+    verifiedAt: timestamp("verified_at"), // Set once ownership is proven via Supercell API token
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
