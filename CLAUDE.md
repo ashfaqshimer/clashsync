@@ -1,0 +1,80 @@
+@AGENTS.md
+
+# ClashSync
+
+Web app for Clash of Clans players: paste the in-game **Export Village** JSON → see every active upgrade (builders, lab, pet house, builder base) with exact finish times → (planned) Builder Potion adjustments and Discord alerts when timers finish.
+
+Product scope and the original plan: `docs/PROJECT_OVERVIEW.md`. `CONTEXT.md` is the planning-era guide; **where it disagrees with this file or the code, the code wins** (it predates the real schema and stack choices).
+
+## Commands
+
+Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn.
+
+- `pnpm dev` — dev server (Turbopack) on http://localhost:3000
+- `pnpm build` / `pnpm start`
+- `pnpm lint` — ESLint 9 flat config (`eslint.config.mjs`)
+- `pnpm drizzle-kit push` — sync `lib/db/schema.ts` to Neon (reads `DATABASE_URL` from `.env.local`). No `drizzle/` migrations folder is committed yet; `generate`/`migrate` would write there.
+
+There is no test runner yet. Verify parser changes by loading the sample village in the UI (`lib/sample-data.ts`) or by running a script with `tsx`.
+
+## Stack (as built)
+
+- **Next.js 16.4** App Router, React 19.3, TypeScript. `next.config.ts` enables `cacheComponents` and `partialPrefetching`. Read `node_modules/next/dist/docs/` before using Next APIs (see AGENTS.md). Route handler `params` is a **Promise** (`await params`).
+- **Tailwind CSS v4**, loaded through the `@tailwindcss/turbopack` loader configured in `next.config.ts`. **shadcn/ui is not installed**, despite what the docs say. The UI uses hand-written Tailwind plus `lucide-react` icons, with a dark, game-style look.
+- **Neon serverless Postgres + Drizzle ORM** (`drizzle-orm/neon-http`). The `neon-http` driver does **not** support interactive transactions, so multi-step writes (like the sync route) are separate statements.
+- Path alias `@/*` → repo root.
+
+## Layout
+
+```
+app/
+  page.tsx                      Single "use client" page (~575 lines): JSON paste tab + player-tag lookup tab, results dashboard
+  api/village/sync/route.ts     POST {rawJson, playerTag?} → parse, upsert user by tag, CANCEL old ACTIVE upgrades, insert new
+  api/village/upgrades/route.ts GET ?tag= → ACTIVE upgrades for that tag, remaining time recomputed from now
+  api/player/[tag]/route.ts     GET → official Supercell API profile (lib/clash-api.ts)
+  api/village/claim/route.ts    POST {tag, token} → verify in-game API token, set users.verified_at + owner cookie
+  v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers)
+lib/
+  parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side
+  clash-data.ts    CLASH_ENTITIES: numeric data ID → {name, category}; resolveEntity() fallback heuristics by section
+  types.ts         Raw export shapes (RawExportVillage / RawVillageItem) + ActiveUpgrade / ParseResult
+  clash-api.ts     fetchPlayerProfile(tag) against api.clashofclans.com (needs CLASH_API_KEY + whitelisted IP)
+  db/schema.ts     Drizzle tables: users, upgrades
+  db/index.ts      db client; forces IPv4-first DNS; falls back to loading .env.local itself
+  sample-data.ts   SAMPLE_VILLAGE_JSON for demos
+  tags.ts          normalizeTag() (uppercase, O→0, validates charset) / tagToSlug() — use for every tag input
+  ownership.ts     HMAC-signed `cs_owner` cookie (AUTH_SECRET) listing tags this browser verified
+  village.ts       getVillage(tag) — server data access for the dashboard
+```
+
+## Domain rules (important)
+
+- **Export format:** top-level `tag`, `timestamp` (Unix seconds) and arrays `buildings`, `heroes`, `units`, `spells`, `pets`, `traps`, plus builder-base twins with a `2` suffix (`buildings2`, `heroes2`, `units2`, `traps2`). An item is an active upgrade when `timer > 0`. `timer` is the number of seconds left **at export time**. `data` is the entity ID, `lvl` is the current level (target = `lvl + 1`), `gear_up` marks a gear-up, and `extra` marks the goblin builder or an extra slot.
+- **Time math:** `finish = exportTimestamp + timer`, all in **UTC Unix seconds** (not ms). If `timestamp` is missing or bogus, the parser falls back to "now". Store epochs; format only for display.
+- **Categories:** `BUILDER | LABORATORY | PET_HOUSE | BUILDER_BASE | OTHER`. Heroes count as `BUILDER` (home) and `BUILDER_BASE` (BB). `units` and `spells` count as `LABORATORY`, and `pets` as `PET_HOUSE`. Unknown IDs go through `resolveEntity` heuristics, so add new IDs to `CLASH_ENTITIES` when they show up.
+- **`originalFinishTime` vs `currentFinishTime`:** the two are equal at sync. Only `currentFinishTime` should change (for example, from a potion). `originalFinishTime` keeps the time from the export.
+- **Sync semantics:** a sync never deletes rows. Previous `ACTIVE` upgrades for the user are set to `CANCELLED`, and fresh rows are inserted. Statuses are `ACTIVE | COMPLETED | CANCELLED`, stored as plain `text` (not a pg enum).
+- **Identity:** users are keyed by **player tag** (stored as `#XXXX`; URLs use the bare slug). Always pass tags through `normalizeTag`. A sync without a valid tag is rejected.
+- **Ownership:** a village becomes protected once someone proves ownership with the in-game API token (Supercell `verifytoken`). After that, `/api/village/sync` returns 403 unless the request carries a valid `cs_owner` cookie for that tag. Unverified villages stay open. This is a stopgap until Discord login (Phase 7).
+- **Dashboard timing:** the server never computes "now". `useNow()` returns `null` during SSR/hydration so markup matches, then ticks every second on the client. Builder totals come from the Builder's Hut `cnt` (`users.builder_count`), which isn't always in the export, so the UI falls back to "N busy / next free in…". Goblin and extra slots don't count as busy.
+
+## Roadmap / not built yet
+
+Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync API, Supercell player lookup), Phase 4 (`/v/[tag]` live dashboard, stale-export warning, idle builder/lab/pet status, API-token ownership). Phase 3 (Vitest, `db.batch` atomic sync, committed migrations, splitting `app/page.tsx`) was skipped and is still open.
+
+Known gap: `boosts.builder_boost` (seconds of builder potion left at export) is ignored, so finish times are too late while a potion is active. Handle this in Phase 5.
+
+Still to build:
+- **Builder Potion** ("Pop Potion"): subtract 9h (32,400s) from `currentFinishTime` on ACTIVE `BUILDER` upgrades, then reschedule their QStash jobs.
+- **Upstash QStash** scheduling: one delayed message per upgrade, with the ID stored in `upgrades.qstash_message_id`. Cancel and reschedule on re-sync or potion.
+- **`/api/webhooks/notify`**: must verify the QStash signature (`QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY`), then send a Discord DM (bot) or post to the user's webhook. Example message: "Chief, your Eagle Artillery Level 7 has finished upgrading!"
+- **Discord linking** (OAuth/bot) and real auth (`AUTH_SECRET` is reserved).
+- Marking upgrades `COMPLETED`.
+
+## Conventions
+
+- Env: copy `.env.example` → `.env.local`. All `.env*` except `.env.example` are gitignored. Use the **pooled** Neon connection string.
+- API responses use the shape `{ success: boolean, error?: string, ... }`, with errors caught and returned as JSON (400 for bad input, 404 when not found, 500 for DB errors).
+- User-facing copy should be player-friendly, not backend jargon. A recent commit replaced technical wording on purpose.
+- Keep `lib/parser.ts` free of server-only imports, because the client page imports it directly.
+- Commits use conventional style (`feat(scope):`, `fix:`, `chore:`, `style(ux):`, `docs:`).
