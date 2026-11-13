@@ -22,5 +22,5 @@ export function VillageTimes({
     const age = now - lastExportTimestamp;
     parts.push(`synced ${age < 60 ? "just now" : `${formatDuration(age)} ago`}`);
   }
-  return <p className="text-xs text-slate-400 mt-0.5">{parts.join(" · ")}</p>;
+  return <p className="text-xs font-semibold text-muted mt-1 min-h-4 tabular-nums">{parts.join(" · ")}</p>;
 }

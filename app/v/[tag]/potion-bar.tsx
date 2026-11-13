@@ -6,18 +6,13 @@ import { FlaskConical, Hammer, Loader2, Undo2, Zap } from "lucide-react";
 import { boostedFinishTime, nextBoostWindow, POTIONS, type PotionKind } from "@/lib/boosts";
 import { formatDuration } from "@/lib/parser";
 import type { VillageSnapshot } from "@/lib/village";
+import { IconChip, type Tone } from "@/app/_components/ui/badge";
+import { Button } from "@/app/_components/ui/button";
+import { Card, CardHeader } from "@/app/_components/ui/card";
 
-const STYLE: Record<PotionKind, { Icon: typeof Hammer; button: string }> = {
-  BUILDER_POTION: {
-    Icon: Hammer,
-    button:
-      "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300",
-  },
-  RESEARCH_POTION: {
-    Icon: FlaskConical,
-    button:
-      "bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border-fuchsia-500/30 text-fuchsia-300",
-  },
+const STYLE: Record<PotionKind, { Icon: typeof Hammer; tone: Tone; button: string }> = {
+  BUILDER_POTION: { Icon: Hammer, tone: "gold", button: "text-gold-200 enabled:hover:border-gold-500/80" },
+  RESEARCH_POTION: { Icon: FlaskConical, tone: "elixir", button: "text-[#f6b8ff] enabled:hover:border-elixir/80" },
 };
 
 /** What a potion would do if popped at `now`, computed the same way as the server. */
@@ -85,18 +80,22 @@ export function PotionBar({
   };
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <Zap className="w-4 h-4 text-amber-400" />
-          Potions
-        </h2>
-        {canEdit && village.undoableBoost && (
-          <button
-            type="button"
+    <Card className="p-4 sm:p-5 space-y-3">
+      <CardHeader
+        icon={
+          <IconChip size="sm">
+            <Zap />
+          </IconChip>
+        }
+        title="Potions"
+        actions={
+          canEdit &&
+          village.undoableBoost && (
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => send("DELETE")}
             disabled={pending !== null}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-50 transition cursor-pointer"
           >
             {pending === "UNDO" ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -104,13 +103,14 @@ export function PotionBar({
               <Undo2 className="w-3.5 h-3.5" />
             )}
             Undo {POTIONS[village.undoableBoost.kind].label}
-          </button>
-        )}
-      </div>
+          </Button>
+          )
+        }
+      />
 
       <div className="grid sm:grid-cols-2 gap-3">
         {(Object.keys(POTIONS) as PotionKind[]).map((kind) => {
-          const { Icon, button } = STYLE[kind];
+          const { Icon, tone, button } = STYLE[kind];
           const p = now === null ? null : preview(village, kind, now);
           const disabled = !canEdit || pending !== null || p === null || p.count === 0;
           return (
@@ -119,25 +119,23 @@ export function PotionBar({
               type="button"
               onClick={() => send("POST", kind)}
               disabled={disabled}
-              className={`flex items-center gap-3 p-3 rounded-xl border text-left transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${button}`}
+              className={`group flex items-center gap-3 p-3 rounded-xl border-2 border-black/70 text-left bg-gradient-to-b from-night-700 to-night-800 shadow-[inset_0_2px_0_rgb(255_255_255/0.1),inset_0_-2px_0_rgb(0_0_0/0.25),0_3px_0_rgb(0_0_0/0.55)] transition cursor-pointer enabled:hover:brightness-110 enabled:active:translate-y-[3px] enabled:active:shadow-none disabled:opacity-55 disabled:cursor-not-allowed focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-sky mb-[3px] ${button}`}
             >
-              {pending === kind ? (
-                <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
-              ) : (
-                <Icon className="w-5 h-5 shrink-0" />
-              )}
+              <IconChip tone={tone}>
+                {pending === kind ? <Loader2 className="animate-spin" /> : <Icon />}
+              </IconChip>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold">
+                <span className="block font-display text-base leading-tight">
                   I used a {POTIONS[kind].label}
                 </span>
-                <span className="block text-[11px] text-slate-400">
+                <span className="block text-xs font-semibold text-muted mt-0.5 tabular-nums">
                   {p === null
                     ? " "
                     : p.count === 0
                       ? "Nothing to speed up right now"
                       : `Saves ${formatDuration(p.saved)} across ${p.count} upgrade${p.count === 1 ? "" : "s"}`}
                   {p && p.activeFor > 0 && (
-                    <span className="text-amber-300"> · boosted, {formatDuration(p.activeFor)} left</span>
+                    <span className="text-gold-300"> · boosted, {formatDuration(p.activeFor)} left</span>
                   )}
                 </span>
               </span>
@@ -147,13 +145,13 @@ export function PotionBar({
       </div>
 
       {!canEdit && (
-        <p className="text-xs text-slate-500">Only the verified owner can log potions for this village.</p>
+        <p className="text-xs font-semibold text-faint">Only the verified owner can log potions for this village.</p>
       )}
       {message && (
-        <p className={`text-xs ${message.tone === "ok" ? "text-emerald-400" : "text-rose-400"}`}>
+        <p role="status" className={`text-sm font-bold ${message.tone === "ok" ? "text-grass" : "text-[#ff8a80]"}`}>
           {message.text}
         </p>
       )}
-    </section>
+    </Card>
   );
 }

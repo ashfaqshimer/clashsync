@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Shield, ShieldCheck } from "lucide-react";
 import { DiscordLoginButton } from "@/app/_components/account-menu";
+import { IconChip } from "@/app/_components/ui/badge";
+import { Button } from "@/app/_components/ui/button";
+import { Card as Panel, Heading } from "@/app/_components/ui/card";
 
 export type OwnershipState =
   /** Linked to the viewer's account. */
@@ -26,21 +29,23 @@ export function OwnershipCard({ tag, ownership }: { tag: string; ownership: Owne
 
   if (state === "account_owner") {
     return (
-      <section className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-sm text-emerald-200">
-        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-        This village is linked to your Discord account. Only you can sync {tag}, from any device.
-      </section>
+      <Panel className="!border-grass/60 flex items-center gap-3 p-4 sm:p-5 text-sm font-semibold text-cream/90">
+        <IconChip tone="green">
+          <ShieldCheck />
+        </IconChip>
+        <p>This village is linked to your Discord account. Only you can sync {tag}, from any device.</p>
+      </Panel>
     );
   }
 
   if (state === "unclaimed") {
     return (
-      <Card icon={<Shield className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />} title="Is this your village?">
+      <Card icon={<IconChip tone="sky"><Shield /></IconChip>} title="Is this your village?">
         {loggedIn ? (
           <>
             Sync it while you&apos;re logged in and it&apos;s linked to your account, so nobody else
             can overwrite your timers.{" "}
-            <Link href="/" className="font-semibold text-sky-300 underline underline-offset-2 hover:text-white">
+            <Link href="/" className="font-extrabold text-sky underline decoration-2 underline-offset-2 hover:text-cream">
               Sync now
             </Link>
           </>
@@ -60,7 +65,7 @@ export function OwnershipCard({ tag, ownership }: { tag: string; ownership: Owne
   // Claimed by someone else: the API token settles it
   return (
     <Card
-      icon={<Shield className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />}
+      icon={<IconChip tone="sky"><Shield /></IconChip>}
       title="Linked to another account"
     >
       If {tag} is yours, take it over with the API token from your game. It moves the village to your
@@ -74,15 +79,15 @@ export function OwnershipCard({ tag, ownership }: { tag: string; ownership: Owne
 
 function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+    <Panel className="p-4 sm:p-5">
       <div className="flex items-start gap-3">
         {icon}
-        <div className="flex-1">
-          <h2 className="text-sm font-semibold text-white">{title}</h2>
-          <div className="text-xs text-slate-400 mt-1">{children}</div>
+        <div className="flex-1 min-w-0">
+          <Heading size="sm">{title}</Heading>
+          <div className="text-sm font-semibold text-muted mt-1.5">{children}</div>
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -126,18 +131,15 @@ function TakeoverForm({ tag }: { tag: string }) {
           autoComplete="off"
           spellCheck={false}
           maxLength={64}
-          className="flex-1 px-3 py-2 bg-slate-950/90 border border-slate-800 rounded-lg font-mono text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+          aria-label="API token"
+          className="field h-10 px-3 font-mono text-sm sm:flex-1"
         />
-        <button
-          type="submit"
-          disabled={pending || !token.trim()}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold transition cursor-pointer"
-        >
+        <Button type="submit" variant="blue" disabled={pending || !token.trim()}>
           {pending && <Loader2 className="w-4 h-4 animate-spin" />}
           Take over
-        </button>
+        </Button>
       </form>
-      {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm font-bold text-[#ff8a80]">{error}</p>}
     </>
   );
 }

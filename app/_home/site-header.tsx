@@ -1,24 +1,25 @@
 import { Hammer } from "lucide-react";
 import { AccountMenu } from "@/app/_components/account-menu";
+import { Badge, IconChip } from "@/app/_components/ui/badge";
 
 export function SiteHeader() {
   return (
-    <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 border border-amber-400/30">
-            <Hammer className="w-5 h-5 text-slate-950 stroke-[2.5]" />
-          </div>
-          <div>
+    <header className="sticky top-0 z-50 border-b-2 border-black/60 bg-night-900/85 shadow-[0_4px_0_rgb(0_0_0/0.25)] backdrop-blur-md">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <IconChip size="lg" className="max-sm:h-10 max-sm:w-10">
+            <Hammer className="stroke-[2.5]" />
+          </IconChip>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xl font-bold tracking-tight text-white">
-                Clash<span className="text-amber-400">Sync</span>
+              <span className="heading-outline text-xl sm:text-2xl">
+                Clash<span className="text-gold-300">Sync</span>
               </span>
-              <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">
+              <Badge tone="red" className="hidden min-[400px]:inline-flex">
                 Live Tracker
-              </span>
+              </Badge>
             </div>
-            <p className="text-xs text-slate-400 hidden sm:block">
+            <p className="text-xs font-semibold text-muted hidden sm:block">
               Clash of Clans Village & Queue Tracker
             </p>
           </div>
@@ -31,7 +32,7 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-slate-800/60 py-6 text-center text-xs text-slate-600 mt-auto">
+    <footer className="border-t-2 border-black/50 py-6 text-center text-xs font-semibold text-faint mt-auto">
       <p>
         ClashSync — Unofficial Clash of Clans companion tool.
       </p>

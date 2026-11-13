@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BellRing, Loader2, MessageCircle } from "lucide-react";
 import { ALERT_LEAD_OPTIONS, alertLeadLabel, SWEEP_INTERVAL_SECONDS } from "@/lib/alerts";
+import { IconChip } from "@/app/_components/ui/badge";
+import { Button, buttonClass } from "@/app/_components/ui/button";
+import { Card, Heading, Well } from "@/app/_components/ui/card";
 
 type Action = "save" | "test" | "remove" | "dm-on" | "dm-off" | "lead";
 
@@ -78,19 +81,20 @@ export function AlertsCard({
   };
 
   const spinner = (a: Action) => pending === a && <Loader2 className="w-3.5 h-3.5 animate-spin" />;
-  const secondary =
-    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 disabled:opacity-50 transition cursor-pointer";
+  const secondary = buttonClass({ variant: "stone", size: "sm" });
   const busy = pending !== null;
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
+    <Card className="p-4 sm:p-5 space-y-4">
       <div className="flex items-start gap-3">
-        <BellRing className={`w-5 h-5 shrink-0 mt-0.5 ${anyOn ? "text-emerald-400" : "text-indigo-400"}`} />
-        <div className="flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-white">
-              Discord alerts {anyOn && <span className="text-emerald-400 font-normal">· on</span>}
-            </h2>
+        <IconChip tone={anyOn ? "green" : "discord"}>
+          <BellRing />
+        </IconChip>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Heading size="sm" className="flex items-center gap-2">
+              Discord alerts {anyOn && <span className="text-grass">· on</span>}
+            </Heading>
             {anyOn && (
               <button type="button" onClick={() => call("test")} disabled={busy} className={secondary}>
                 {spinner("test")}
@@ -98,14 +102,14 @@ export function AlertsCard({
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-sm font-semibold text-muted">
             <label htmlFor="alert-lead">Alert me</label>
             <select
               id="alert-lead"
               value={leadMinutes}
               disabled={busy}
               onChange={(e) => call("lead", Number(e.target.value))}
-              className="px-2 py-1 rounded-md bg-slate-950/90 border border-slate-700 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50"
+              className="field !w-auto h-9 pl-2.5 pr-1 text-sm font-bold"
             >
               {ALERT_LEAD_OPTIONS.map((m) => (
                 <option key={m} value={m}>
@@ -114,7 +118,7 @@ export function AlertsCard({
               ))}
             </select>
             {spinner("lead")}
-            <span className="text-slate-500">
+            <span className="text-xs text-faint basis-full sm:basis-auto">
               {leadMinutes > 0
                 ? `arrives ${leadMinutes}–${leadMinutes + SWEEP_INTERVAL_SECONDS / 60} min before an upgrade finishes, so you can be in the game for it`
                 : `arrives within ${SWEEP_INTERVAL_SECONDS / 60} min after an upgrade finishes`}
@@ -125,33 +129,29 @@ export function AlertsCard({
 
       {/* Direct messages from the ClashSync bot */}
       {dmAvailable && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <MessageCircle className={`w-4 h-4 ${dmOn ? "text-emerald-400" : "text-slate-500"}`} />
+        <Well className="flex flex-wrap items-center justify-between gap-2 p-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-cream/90">
+            <MessageCircle className={`w-4 h-4 ${dmOn ? "text-grass" : "text-faint"}`} />
             {dmOn ? "Sending you a DM" : "Get alerts as a Discord DM"}
           </div>
           <button
             type="button"
             onClick={() => call(dmOn ? "dm-off" : "dm-on")}
             disabled={busy}
-            className={
-              dmOn
-                ? secondary
-                : "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5865F2] hover:bg-[#4752c4] disabled:opacity-50 text-white text-xs font-semibold transition cursor-pointer"
-            }
+            className={dmOn ? secondary : buttonClass({ variant: "discord", size: "sm" })}
           >
             {spinner("dm-on")}
             {spinner("dm-off")}
             {dmOn ? "Turn off" : "Turn on"}
           </button>
-        </div>
+        </Well>
       )}
 
       {/* Channel webhook */}
-      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+      <Well className="p-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <BellRing className={`w-4 h-4 ${webhookOn ? "text-emerald-400" : "text-slate-500"}`} />
+          <div className="flex items-center gap-2 text-sm font-bold text-cream/90">
+            <BellRing className={`w-4 h-4 ${webhookOn ? "text-grass" : "text-faint"}`} />
             {webhookOn ? "Posting to a Discord channel" : "Post to a Discord channel (webhook)"}
           </div>
           {!editing && (
@@ -177,7 +177,7 @@ export function AlertsCard({
             }}
             className="space-y-2"
           >
-            <p className="text-[11px] text-slate-500">
+            <p className="text-xs font-semibold text-faint">
               In Discord: Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -187,29 +187,26 @@ export function AlertsCard({
                 placeholder="https://discord.com/api/webhooks/…"
                 autoComplete="off"
                 spellCheck={false}
-                className="flex-1 px-3 py-2 bg-slate-950/90 border border-slate-800 rounded-lg font-mono text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                aria-label="Discord webhook URL"
+                className="field h-10 px-3 font-mono text-xs sm:flex-1"
               />
-              <button
-                type="submit"
-                disabled={busy || !webhookUrl.trim()}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer"
-              >
+              <Button type="submit" variant="green" disabled={busy || !webhookUrl.trim()}>
                 {spinner("save")}
                 Save
-              </button>
-              <button type="button" onClick={() => setEditing(false)} className={secondary}>
+              </Button>
+              <Button variant="stone" onClick={() => setEditing(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         )}
-      </div>
+      </Well>
 
       {message && (
-        <p className={`text-xs ${message.tone === "ok" ? "text-emerald-400" : "text-rose-400"}`}>
+        <p role="status" className={`text-sm font-bold ${message.tone === "ok" ? "text-grass" : "text-[#ff8a80]"}`}>
           {message.text}
         </p>
       )}
-    </section>
+    </Card>
   );
 }

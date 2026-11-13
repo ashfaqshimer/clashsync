@@ -1,38 +1,42 @@
-import { CheckCircle2, Clock, FlaskConical, Hammer, PawPrint, Wrench, Zap } from "lucide-react";
+import { CheckCircle2, Clock, Zap } from "lucide-react";
 import type { ActiveUpgrade, ParseResult } from "@/lib/types";
+import { Badge, IconChip } from "@/app/_components/ui/badge";
+import { Card, CardHeader } from "@/app/_components/ui/card";
+import { CategoryBadge } from "@/app/_components/ui/category";
 
 export function UpgradeResults({ result }: { result: ParseResult }) {
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 animate-fade-in">
       <SummaryHeader result={result} />
 
       {result.upgrades.length > 0 ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-800/80 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Active Upgrades ({result.totalActiveUpgrades})</span>
-            </h2>
-            <span className="text-[11px] text-slate-400 font-mono">
-              Sorted by finish time
-            </span>
-          </div>
+        <Card className="overflow-hidden">
+          <CardHeader
+            className="px-4 sm:px-5 py-3.5 border-b-2 border-black/40"
+            icon={
+              <IconChip tone="green" size="sm">
+                <CheckCircle2 />
+              </IconChip>
+            }
+            title={<>Active Upgrades ({result.totalActiveUpgrades})</>}
+            actions={<span className="label-caps text-[0.7rem]">Sorted by finish time</span>}
+          />
 
-          <div className="divide-y divide-slate-800/60">
+          <ol className="divide-y-2 divide-black/25">
             {result.upgrades.map((item, idx) => (
               <UpgradeRow key={item.id} item={item} position={idx + 1} />
             ))}
-          </div>
-        </div>
+          </ol>
+        </Card>
       ) : (
-        <div className="p-8 text-center rounded-xl border border-slate-800 bg-slate-900/30 space-y-2">
-          <p className="text-sm font-medium text-slate-300">
+        <Card className="p-8 text-center space-y-2">
+          <p className="font-display text-lg text-cream">
             No active upgrades found in this village snapshot.
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-muted">
             All builders, laboratory research, and pet houses appear to be idle.
           </p>
-        </div>
+        </Card>
       )}
     </section>
   );
@@ -40,123 +44,83 @@ export function UpgradeResults({ result }: { result: ParseResult }) {
 
 function SummaryHeader({ result }: { result: ParseResult }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl border border-slate-800 bg-slate-900/40">
-      <div className="space-y-0.5">
-        <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
+    <Card className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 p-4 sm:p-5">
+      <div className="space-y-1 min-w-0">
+        <p className="label-caps text-[0.7rem]">
           Player Tag
         </p>
-        <p className="text-sm font-bold text-white font-mono">
+        <p className="heading-outline is-gold text-base truncate">
           {result.playerTag || "N/A"}
         </p>
       </div>
 
-      <div className="space-y-0.5">
-        <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
+      <div className="space-y-1 min-w-0">
+        <p className="label-caps text-[0.7rem]">
           Export Snapshot
         </p>
-        <p className="text-sm font-semibold text-slate-300">
+        <p className="text-sm font-bold text-cream tabular-nums">
           {result.formattedExportTime || "Just now"}
         </p>
       </div>
 
-      <div className="space-y-0.5">
-        <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
+      <div className="space-y-1 min-w-0">
+        <p className="label-caps text-[0.7rem]">
           Home Village
         </p>
-        <p className="text-sm font-bold text-amber-400">
+        <p className="text-sm font-extrabold text-gold-300 tabular-nums">
           {result.builderUpgradesCount} Builders · {result.labUpgradesCount} Lab · {result.petUpgradesCount} Pet
         </p>
       </div>
 
-      <div className="space-y-0.5">
-        <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
+      <div className="space-y-1 min-w-0">
+        <p className="label-caps text-[0.7rem]">
           Builder Base
         </p>
-        <p className="text-sm font-bold text-sky-400">
+        <p className="text-sm font-extrabold text-sky tabular-nums">
           {result.builderBaseUpgradesCount} Active
         </p>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function UpgradeRow({ item, position }: { item: ActiveUpgrade; position: number }) {
   return (
-    <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-850/50 transition">
-      <div className="flex items-start gap-3">
-        <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-mono font-bold text-slate-400 mt-0.5">
+    <li className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition hover:bg-white/[0.03]">
+      <div className="flex items-start gap-3 min-w-0">
+        <div className="well w-8 h-8 shrink-0 flex items-center justify-center font-display text-sm text-gold-300 tabular-nums">
           {position}
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-base font-extrabold text-cream">
               {item.name}
             </h3>
             <CategoryBadge category={item.category} />
             {item.isGoblinOrHelper && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <Zap className="w-2.5 h-2.5" />
+              <Badge tone="green" icon={<Zap className="w-3 h-3" />}>
                 Extra Slot / Goblin
-              </span>
+              </Badge>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-0.5 font-mono">
+          <p className="text-xs font-semibold text-muted mt-1 tabular-nums">
             Level: {item.currentLevel} →{" "}
-            <span className="text-amber-400 font-semibold">
+            <span className="text-gold-300 font-extrabold">
               Level {item.targetLevel}
             </span>
           </p>
         </div>
       </div>
 
-      <div className="sm:text-right pl-10 sm:pl-0 space-y-0.5">
-        <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20">
+      <div className="pl-11 sm:pl-0 shrink-0 flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:block sm:text-right sm:space-y-1">
+        <div className="well inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gold-300">
           <Clock className="w-3.5 h-3.5" />
-          <span>{item.formattedRemaining}</span>
+          <span className="timer">{item.formattedRemaining}</span>
         </div>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] font-semibold text-faint tabular-nums">
           Finishes: {item.formattedFinishTime}
         </p>
       </div>
-    </div>
+    </li>
   );
-}
-
-function CategoryBadge({ category }: { category: string }) {
-  switch (category) {
-    case "BUILDER":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-          <Hammer className="w-3 h-3" />
-          Builder
-        </span>
-      );
-    case "LABORATORY":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20">
-          <FlaskConical className="w-3 h-3" />
-          Laboratory
-        </span>
-      );
-    case "PET_HOUSE":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          <PawPrint className="w-3 h-3" />
-          Pet House
-        </span>
-      );
-    case "BUILDER_BASE":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
-          <Wrench className="w-3 h-3" />
-          Builder Base
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-          Upgrade
-        </span>
-      );
-  }
 }

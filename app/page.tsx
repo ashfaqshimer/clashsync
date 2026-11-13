@@ -11,6 +11,9 @@ import { ErrorNotice, SyncNotice } from "./_home/notices";
 import { SiteFooter, SiteHeader } from "./_home/site-header";
 import { TagLookupTab } from "./_home/tag-lookup-tab";
 import { UpgradeResults } from "./_home/upgrade-results";
+import { IconChip } from "./_components/ui/badge";
+import { Button } from "./_components/ui/button";
+import { Card, Heading } from "./_components/ui/card";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"json" | "tag">("json");
@@ -183,58 +186,57 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans">
       <SiteHeader />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Navigation Tabs between Village Data & Player Tag */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 sm:p-8 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                {activeTab === "json" ? (
-                  <>
-                    <FileCode2 className="w-5 h-5 text-amber-400" />
-                    Sync Village
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-5 h-5 text-sky-400" />
-                    Player Tag Lookup
-                  </>
-                )}
-              </h1>
-              <p className="text-xs text-slate-400 mt-1">
-                {activeTab === "json"
-                  ? "Paste your village export data to track all active builders, laboratory research, and pet upgrades."
-                  : "Search your player tag to view your village profile and tracked timers."}
-              </p>
+        <Card tone="wood" className="p-4 sm:p-7 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              {activeTab === "json" ? (
+                <IconChip size="lg">
+                  <FileCode2 />
+                </IconChip>
+              ) : (
+                <IconChip size="lg" tone="sky">
+                  <Search />
+                </IconChip>
+              )}
+              <div className="min-w-0">
+                <Heading as="h1" size="lg">
+                  {activeTab === "json" ? "Sync Village" : "Player Tag Lookup"}
+                </Heading>
+                <p className="text-sm text-cream/80 mt-1.5">
+                  {activeTab === "json"
+                    ? "Paste your village export data to track all active builders, laboratory research, and pet upgrades."
+                    : "Search your player tag to view your village profile and tracked timers."}
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
+            <div role="tablist" aria-label="How to load your village" className="well flex shrink-0 items-center gap-1 p-1.5 self-start">
+              <Button
+                role="tab"
+                aria-selected={activeTab === "json"}
+                size="sm"
+                variant={activeTab === "json" ? "gold" : "ghost"}
+                className={activeTab === "json" ? undefined : "mb-1 text-cream/70 hover:text-cream"}
                 onClick={() => setActiveTab("json")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                  activeTab === "json"
-                    ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
-                    : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200"
-                }`}
               >
                 Export Data
-              </button>
+              </Button>
 
-              <button
-                type="button"
+              <Button
+                role="tab"
+                aria-selected={activeTab === "tag"}
+                size="sm"
+                variant={activeTab === "tag" ? "blue" : "ghost"}
+                className={activeTab === "tag" ? undefined : "mb-1 text-cream/70 hover:text-cream"}
                 onClick={() => setActiveTab("tag")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                  activeTab === "tag"
-                    ? "bg-sky-500/15 border-sky-500/40 text-sky-400"
-                    : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200"
-                }`}
               >
                 Player Tag
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -259,7 +261,7 @@ export default function Home() {
               lookupNote={lookupNote}
             />
           )}
-        </section>
+        </Card>
 
         {syncNotice && <SyncNotice message={syncNotice} dashboardPath={dashboardPath} />}
 

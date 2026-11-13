@@ -10,28 +10,28 @@ import {
   TriangleAlert,
   Wrench,
 } from "lucide-react";
-import type { ComponentType } from "react";
 import { formatDuration } from "@/lib/parser";
 import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { AlertsCard } from "./alerts-card";
 import { OwnershipCard, type OwnershipView } from "./ownership-card";
 import { PotionBar } from "./potion-bar";
 import { useNow } from "./use-now";
+import type { LucideIcon } from "lucide-react";
+import { Badge, IconChip, type Tone } from "@/app/_components/ui/badge";
+import { Card, CardHeader, Heading, Well } from "@/app/_components/ui/card";
+import { StatusTile as Tile } from "@/app/_components/ui/status-tile";
 
 /** Exports older than this probably miss upgrades started since. */
 const STALE_AFTER_SECONDS = 12 * 3600;
 
 type GroupKey = "builders" | "lab" | "pets" | "builderBase" | "other";
 
-const GROUPS: Record<
-  GroupKey,
-  { label: string; Icon: ComponentType<{ className?: string }>; accent: string }
-> = {
-  builders: { label: "Builders", Icon: Hammer, accent: "text-amber-400" },
-  lab: { label: "Laboratory", Icon: FlaskConical, accent: "text-fuchsia-400" },
-  pets: { label: "Pet House", Icon: PawPrint, accent: "text-emerald-400" },
-  builderBase: { label: "Builder Base", Icon: Wrench, accent: "text-sky-400" },
-  other: { label: "Other", Icon: Clock, accent: "text-slate-400" },
+const GROUPS: Record<GroupKey, { label: string; Icon: LucideIcon; tone: Tone }> = {
+  builders: { label: "Builders", Icon: Hammer, tone: "gold" },
+  lab: { label: "Laboratory", Icon: FlaskConical, tone: "elixir" },
+  pets: { label: "Pet House", Icon: PawPrint, tone: "green" },
+  builderBase: { label: "Builder Base", Icon: Wrench, tone: "sky" },
+  other: { label: "Other", Icon: Clock, tone: "stone" },
 };
 
 function groupOf(u: VillageUpgrade): GroupKey {
@@ -91,24 +91,31 @@ export function LiveDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">{village.playerTag}</h1>
-          <p className="text-xs text-slate-400 mt-1">
+      <Card tone="wood" className="flex items-center gap-3 sm:gap-4 p-4 sm:p-6">
+        <IconChip size="lg">
+          <Hammer />
+        </IconChip>
+        <div className="min-w-0">
+          <Heading as="h1" size="lg" gold className="truncate">
+            {village.playerTag}
+          </Heading>
+          <p className="text-sm font-semibold text-cream/80 mt-1 min-h-5 tabular-nums">
             {exportAge === null
               ? " "
               : `Synced ${exportAge < 60 ? "just now" : `${formatDuration(exportAge)} ago`}`}
           </p>
         </div>
-      </div>
+      </Card>
 
       {exportAge !== null && exportAge > STALE_AFTER_SECONDS && (
-        <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm">
-          <TriangleAlert className="w-5 h-5 shrink-0 text-amber-400" />
-          <div className="flex-1">
+        <div role="status" className="panel-stone !border-gold-500 flex items-start gap-3 p-4 text-sm font-semibold text-gold-100 animate-fade-in">
+          <IconChip size="sm">
+            <TriangleAlert />
+          </IconChip>
+          <div className="flex-1 self-center">
             Your export is {formatDuration(exportAge)} old, so upgrades you&apos;ve started since
             won&apos;t show here.{" "}
-            <Link href="/" className="font-semibold underline underline-offset-2 hover:text-white">
+            <Link href="/" className="font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream">
               Re-sync for accuracy
             </Link>
           </div>
@@ -144,9 +151,9 @@ export function LiveDashboard({
 
       {/* Upgrade lists */}
       {village.upgrades.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 text-center text-sm text-slate-400">
+        <Card className="p-8 text-center font-display text-lg text-cream/85">
           No upgrades were running in your last export.
-        </div>
+        </Card>
       ) : (
         <div className="grid lg:grid-cols-2 gap-4">
           {(Object.keys(GROUPS) as GroupKey[])
@@ -183,23 +190,8 @@ function StatusTile({
   detail: string | null;
   alert: boolean;
 }) {
-  const { label, Icon, accent } = GROUPS[group];
-  return (
-    <div
-      className={`rounded-xl border p-4 ${
-        alert ? "border-amber-500/40 bg-amber-500/5" : "border-slate-800 bg-slate-900/60"
-      }`}
-    >
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-        <Icon className={`w-3.5 h-3.5 ${accent}`} />
-        {label}
-      </div>
-      <div className="mt-2 text-lg font-bold text-white">{headline}</div>
-      <div className={`text-xs mt-0.5 min-h-4 ${alert ? "text-amber-300" : "text-slate-400"}`}>
-        {detail ?? " "}
-      </div>
-    </div>
-  );
+  const { label, Icon, tone } = GROUPS[group];
+  return <Tile icon={Icon} tone={tone} label={label} headline={headline} detail={detail} alert={alert} />;
 }
 
 function SlotTile({
@@ -239,35 +231,38 @@ function UpgradeGroup({
   items: VillageUpgrade[];
   now: number | null;
 }) {
-  const { label, Icon, accent } = GROUPS[group];
+  const { label, Icon, tone } = GROUPS[group];
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-white mb-3">
-        <Icon className={`w-4 h-4 ${accent}`} />
-        {label}
-        <span className="text-slate-500 font-normal">({items.length})</span>
-      </h2>
-      <ul className="divide-y divide-slate-800/80">
+    <Card className="p-4 sm:p-5 space-y-3">
+      <CardHeader
+        icon={
+          <IconChip tone={tone} size="sm">
+            <Icon />
+          </IconChip>
+        }
+        title={label}
+        count={items.length}
+      />
+      <Well as="ul" className="divide-y-2 divide-black/25">
         {items.map((u) => {
           const remaining = now === null ? null : u.currentFinishTime - now;
           const done = remaining !== null && remaining <= 0;
           return (
-            <li key={u.id} className="py-2.5 flex items-center justify-between gap-3">
+            <li key={u.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm text-slate-100 truncate">{u.name}</div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-sm font-bold text-cream truncate">{u.name}</div>
+                <div className="text-[11px] font-semibold text-faint tabular-nums">
                   Lv {u.currentLevel} → {u.targetLevel}
                   {now !== null && <> · {formatClock(u.currentFinishTime)}</>}
                 </div>
               </div>
               <div className="text-right shrink-0">
                 {done ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  <Badge tone="green" icon={<CheckCircle2 className="w-3 h-3" />}>
                     Done
-                  </span>
+                  </Badge>
                 ) : (
-                  <span className="font-mono text-sm tabular-nums text-amber-300">
+                  <span className="timer text-sm text-gold-300">
                     {remaining === null ? "--" : formatDuration(remaining)}
                   </span>
                 )}
@@ -275,7 +270,7 @@ function UpgradeGroup({
             </li>
           );
         })}
-      </ul>
-    </section>
+      </Well>
+    </Card>
   );
 }

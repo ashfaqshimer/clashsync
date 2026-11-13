@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Badge, IconChip } from "@/app/_components/ui/badge";
+import { buttonClass } from "@/app/_components/ui/button";
 
 export function SyncNotice({
   message,
@@ -9,21 +11,25 @@ export function SyncNotice({
   dashboardPath: string | null;
 }) {
   return (
-    <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3 text-emerald-300 text-xs animate-fade-in">
-      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-      <div className="flex-1 font-medium">{message}</div>
+    <div
+      role="status"
+      className="panel-stone !border-grass/60 p-4 flex flex-col sm:flex-row sm:items-center gap-3 animate-fade-in"
+    >
+      <div className="flex flex-1 items-center gap-3">
+        <IconChip tone="green" size="sm">
+          <CheckCircle2 />
+        </IconChip>
+        <div className="flex-1 text-sm font-bold text-cream">{message}</div>
+      </div>
       {dashboardPath ? (
-        <Link
-          href={dashboardPath}
-          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1 rounded transition"
-        >
+        <Link href={dashboardPath} className={buttonClass({ variant: "green", size: "md", className: "self-end sm:self-auto" })}>
           Open live dashboard
-          <ArrowRight className="w-3 h-3" />
+          <ArrowRight className="w-4 h-4" />
         </Link>
       ) : (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
+        <Badge tone="green" className="self-end sm:self-auto">
           Synced
-        </span>
+        </Badge>
       )}
     </div>
   );
@@ -31,11 +37,13 @@ export function SyncNotice({
 
 export function ErrorNotice({ message }: { message: string }) {
   return (
-    <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-start gap-3 text-rose-300 text-xs">
-      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-rose-400" />
+    <div role="alert" className="panel-stone !border-ruby/70 p-4 flex items-start gap-3 animate-fade-in">
+      <IconChip tone="red" size="sm">
+        <AlertCircle />
+      </IconChip>
       <div>
-        <p className="font-semibold text-rose-200">Notice</p>
-        <p className="mt-0.5">{message}</p>
+        <p className="font-display text-base text-[#ffb3ab]">Notice</p>
+        <p className="mt-0.5 text-sm font-semibold text-cream/90">{message}</p>
       </div>
     </div>
   );

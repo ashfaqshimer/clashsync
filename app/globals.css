@@ -1,18 +1,561 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────────────────────────────────
+   ClashSync design tokens
+   A night-time village: deep blue sky, wood-framed panels, stone wells,
+   bevelled gold buttons and chunky outlined headings.
+   ────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #090d16;
-  --foreground: #f1f5f9;
+  /* Sky / page */
+  --night-950: #07101d;
+  --night-900: #0c1828;
+  --night-850: #112036;
+  --night-800: #172a44;
+  --night-700: #213a5c;
+  --night-600: #2f4d75;
+
+  /* Stone panels */
+  --stone-top: #1f3350;
+  --stone-bottom: #16263d;
+  --stone-edge: #050b14;
+  --stone-line: #2c4466;
+
+  /* Wood panels */
+  --wood-light: #a0672f;
+  --wood: #84501f;
+  --wood-dark: #5c3414;
+  --wood-edge: #2a1608;
+
+  /* Gold (primary) */
+  --gold-100: #fff6c9;
+  --gold-200: #ffe98a;
+  --gold-300: #ffd84a;
+  --gold-400: #ffc61a;
+  --gold-500: #f2a900;
+  --gold-600: #c97f00;
+  --gold-700: #8f5400;
+
+  /* Resource / category accents */
+  --elixir: #e05cf2; /* laboratory */
+  --elixir-dark: #8f2aa6;
+  --grass: #6fd34a; /* pets, success */
+  --grass-dark: #2f8a1c;
+  --sky: #4cc2ff; /* builder base, info */
+  --sky-dark: #1673c9;
+  --ruby: #ff4d4d; /* danger, notification pips */
+  --ruby-dark: #b3161f;
+  --discord: #5865f2;
+  --discord-dark: #3c45c9;
+
+  /* Text */
+  --ink: #140a02; /* outlines on display type */
+  --cream: #fdf3dc;
+  --text: #e8eef8;
+  --text-muted: #9fb0c8;
+  --text-faint: #6c7f9b;
+
+  --background: var(--night-950);
+  --foreground: var(--text);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-night-950: var(--night-950);
+  --color-night-900: var(--night-900);
+  --color-night-850: var(--night-850);
+  --color-night-800: var(--night-800);
+  --color-night-700: var(--night-700);
+  --color-night-600: var(--night-600);
+  --color-stone-line: var(--stone-line);
+  --color-wood: var(--wood);
+  --color-wood-dark: var(--wood-dark);
+  --color-wood-edge: var(--wood-edge);
+  --color-gold-100: var(--gold-100);
+  --color-gold-200: var(--gold-200);
+  --color-gold-300: var(--gold-300);
+  --color-gold-400: var(--gold-400);
+  --color-gold-500: var(--gold-500);
+  --color-gold-600: var(--gold-600);
+  --color-gold-700: var(--gold-700);
+  --color-elixir: var(--elixir);
+  --color-grass: var(--grass);
+  --color-sky: var(--sky);
+  --color-ruby: var(--ruby);
+  --color-discord: var(--discord);
+  --color-ink: var(--ink);
+  --color-cream: var(--cream);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display-face);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --animate-fade-in: fade-in 0.25s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 body {
-  background-color: var(--background);
   color: var(--foreground);
+  /* Night sky: a soft glow above the village, falling off to deep blue */
+  background-color: var(--background);
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgb(76 120 190 / 0.28), transparent 60%),
+    radial-gradient(80% 40% at 100% 0%, rgb(140 80 200 / 0.12), transparent 70%),
+    linear-gradient(180deg, var(--night-900) 0%, var(--night-950) 70%);
+  background-attachment: fixed;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Component styles. React wrappers live in app/_components/ui/.
+   ────────────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  /* ── Display type ─────────────────────────────────────────────────────── */
+
+  /* Chunky outlined heading: cream fill, ink stroke, hard drop shadow */
+  .heading-outline {
+    font-family: var(--font-display-face), system-ui, sans-serif;
+    font-weight: 400;
+    color: var(--cream);
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+    -webkit-text-stroke: 0.14em var(--ink);
+    paint-order: stroke fill;
+    text-shadow: 0 0.09em 0 var(--ink);
+  }
+  .heading-outline.is-gold {
+    color: var(--gold-300);
+  }
+
+  /* Small all-caps label (tile labels, field labels) */
+  .label-caps {
+    font-family: var(--font-display-face), system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* Countdown digits: same width for every digit so timers don't jitter */
+  .timer {
+    font-family: var(--font-body), system-ui, sans-serif;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    letter-spacing: 0;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
+
+  .btn {
+    --btn-top: var(--gold-200);
+    --btn-mid: var(--gold-400);
+    --btn-bottom: var(--gold-600);
+    --btn-lip: var(--gold-700);
+    --btn-text: #fff;
+    --btn-lip-size: 4px;
+
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    font-family: var(--font-display-face), system-ui, sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--btn-text);
+    border: 2px solid var(--ink);
+    border-radius: 0.75rem;
+    background: linear-gradient(
+      180deg,
+      var(--btn-top) 0%,
+      var(--btn-mid) 48%,
+      var(--btn-bottom) 100%
+    );
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.55),
+      inset 0 -2px 0 rgb(0 0 0 / 0.18),
+      0 var(--btn-lip-size) 0 var(--btn-lip),
+      0 calc(var(--btn-lip-size) + 1px) 0 var(--ink),
+      0 calc(var(--btn-lip-size) + 4px) 10px rgb(0 0 0 / 0.35);
+    /* Thin outline around light-on-colour text */
+    text-shadow:
+      -1px -1px 0 var(--ink),
+      1px -1px 0 var(--ink),
+      -1px 1px 0 var(--ink),
+      1px 1px 0 var(--ink),
+      0 2px 0 var(--ink);
+    transform: translateY(0);
+    transition:
+      transform 80ms ease-out,
+      box-shadow 80ms ease-out,
+      filter 120ms ease-out;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: calc(var(--btn-lip-size) + 1px);
+  }
+  /* Glossy sheen across the top half */
+  .btn::before {
+    content: "";
+    position: absolute;
+    inset: 2px 4px 50% 4px;
+    border-radius: 0.55rem 0.55rem 0.4rem 0.4rem;
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.35), rgb(255 255 255 / 0.05));
+    pointer-events: none;
+  }
+  .btn > svg {
+    filter: drop-shadow(0 1px 0 var(--ink));
+  }
+  .btn:hover {
+    filter: brightness(1.08) saturate(1.05);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(var(--btn-lip-size));
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.45),
+      inset 0 -2px 0 rgb(0 0 0 / 0.18),
+      0 0 0 var(--btn-lip),
+      0 1px 0 var(--ink);
+  }
+  .btn:focus-visible {
+    outline: 3px solid var(--sky);
+    outline-offset: 3px;
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    filter: grayscale(0.85) brightness(0.75);
+  }
+
+  .btn-sm {
+    height: 2rem;
+    padding: 0 0.75rem;
+    font-size: 0.8125rem;
+    border-radius: 0.6rem;
+    --btn-lip-size: 3px;
+  }
+  .btn-md {
+    height: 2.5rem;
+    padding: 0 1.1rem;
+    font-size: 0.9375rem;
+  }
+  .btn-lg {
+    height: 3rem;
+    padding: 0 1.6rem;
+    font-size: 1.125rem;
+    border-radius: 0.9rem;
+  }
+  .btn-icon {
+    padding: 0;
+    aspect-ratio: 1;
+  }
+
+  .btn-gold {
+    /* defaults */
+  }
+  .btn-green {
+    --btn-top: #b8f27a;
+    --btn-mid: #6fd34a;
+    --btn-bottom: #3a9e22;
+    --btn-lip: #22650f;
+  }
+  .btn-blue {
+    --btn-top: #9be3ff;
+    --btn-mid: #4cc2ff;
+    --btn-bottom: #1f86e0;
+    --btn-lip: #0f4f8f;
+  }
+  .btn-red {
+    --btn-top: #ff9c8f;
+    --btn-mid: #ff5a4d;
+    --btn-bottom: #d1232b;
+    --btn-lip: #7d0d13;
+  }
+  .btn-discord {
+    --btn-top: #9aa3ff;
+    --btn-mid: #6973f5;
+    --btn-bottom: #4650d6;
+    --btn-lip: #262c8f;
+  }
+  /* Quiet stone button for secondary actions */
+  .btn-stone {
+    --btn-top: #3b5a85;
+    --btn-mid: #2c4769;
+    --btn-bottom: #213753;
+    --btn-lip: #0d1828;
+    --btn-text: var(--text);
+  }
+  .btn-stone::before {
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.14), transparent);
+  }
+  /* Text-only link-button: no bevel */
+  .btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    text-shadow: none;
+    color: var(--text-muted);
+    margin-bottom: 0;
+  }
+  .btn-ghost::before {
+    display: none;
+  }
+  .btn-ghost > svg {
+    filter: none;
+  }
+  .btn-ghost:hover {
+    color: var(--text);
+    filter: none;
+    background: rgb(255 255 255 / 0.06);
+  }
+  .btn-ghost:active:not(:disabled) {
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* ── Panels ───────────────────────────────────────────────────────────── */
+
+  /* Stone: the default card. Bevelled night-blue slab with a dark edge. */
+  .panel-stone {
+    position: relative;
+    border: 2px solid var(--stone-edge);
+    border-radius: 1.1rem;
+    background: linear-gradient(180deg, var(--stone-top), var(--stone-bottom));
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.08),
+      inset 0 -3px 0 rgb(0 0 0 / 0.25),
+      0 4px 0 rgb(0 0 0 / 0.45),
+      0 12px 28px rgb(0 0 0 / 0.35);
+  }
+
+  /* Wood: framed plank panel for the hero section of each page */
+  .panel-wood {
+    position: relative;
+    border: 3px solid var(--wood-edge);
+    border-radius: 1.25rem;
+    color: var(--cream);
+    background-color: var(--wood);
+    background-image:
+      /* grain */
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008 0.35' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.08 0 0 0 0 0.02 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+      /* plank seams */
+      repeating-linear-gradient(
+        180deg,
+        transparent 0,
+        transparent 46px,
+        rgb(0 0 0 / 0.2) 46px,
+        rgb(0 0 0 / 0.2) 48px,
+        rgb(255 255 255 / 0.06) 48px,
+        rgb(255 255 255 / 0.06) 49px
+      ),
+      linear-gradient(180deg, var(--wood-light), var(--wood) 40%, var(--wood-dark));
+    background-size:
+      400px 160px,
+      auto,
+      auto;
+    box-shadow:
+      inset 0 0 0 2px rgb(255 214 150 / 0.18),
+      inset 0 3px 0 rgb(255 230 180 / 0.22),
+      inset 0 -4px 0 rgb(0 0 0 / 0.3),
+      0 5px 0 #170b03,
+      0 14px 30px rgb(0 0 0 / 0.45);
+  }
+
+  /* Recessed well inside a panel (inputs, lists, sub-sections) */
+  .well {
+    border-radius: 0.85rem;
+    background: rgb(4 10 20 / 0.45);
+    box-shadow:
+      inset 0 2px 6px rgb(0 0 0 / 0.55),
+      inset 0 0 0 1px rgb(0 0 0 / 0.4),
+      0 1px 0 rgb(255 255 255 / 0.06);
+  }
+  .panel-wood .well {
+    background: rgb(30 14 3 / 0.55);
+  }
+
+  /* ── Form fields ──────────────────────────────────────────────────────── */
+
+  .field {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 2px solid var(--stone-edge);
+    background: var(--night-950);
+    color: var(--text);
+    box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.6);
+    transition:
+      border-color 120ms,
+      box-shadow 120ms;
+  }
+  .field::placeholder {
+    color: var(--text-faint);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--gold-400);
+    box-shadow:
+      inset 0 2px 5px rgb(0 0 0 / 0.6),
+      0 0 0 3px rgb(255 198 26 / 0.25);
+  }
+  .field:disabled {
+    opacity: 0.6;
+  }
+
+  /* ── Badges ───────────────────────────────────────────────────────────── */
+
+  .badge {
+    --badge-bg: var(--night-700);
+    --badge-fg: var(--text);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 1.375rem;
+    padding: 0 0.55rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--ink);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--badge-bg) 100%, white 22%),
+      var(--badge-bg)
+    );
+    color: var(--badge-fg);
+    font-family: var(--font-display-face), system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 0.75rem;
+    letter-spacing: 0.035em;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 2px 0 rgb(0 0 0 / 0.45);
+    text-shadow:
+      -1px -1px 0 rgb(20 10 2 / 0.7),
+      1px -1px 0 rgb(20 10 2 / 0.7),
+      -1px 1px 0 rgb(20 10 2 / 0.7),
+      1px 1px 0 rgb(20 10 2 / 0.7);
+  }
+  .badge > svg {
+    stroke-width: 2.75;
+    filter: drop-shadow(0 1px 0 rgb(20 10 2 / 0.8));
+  }
+  .badge-gold {
+    --badge-bg: #dd9200;
+    --badge-fg: #fff;
+  }
+  .badge-elixir {
+    --badge-bg: #b23fd0;
+    --badge-fg: #fff;
+  }
+  .badge-green {
+    --badge-bg: #3f9e25;
+    --badge-fg: #fff;
+  }
+  .badge-sky {
+    --badge-bg: #1f86e0;
+    --badge-fg: #fff;
+  }
+  .badge-red {
+    --badge-bg: var(--ruby-dark);
+    --badge-fg: #fff;
+  }
+  .badge-stone {
+    --badge-bg: var(--night-700);
+    --badge-fg: var(--text);
+  }
+  .badge-discord {
+    --badge-bg: var(--discord-dark);
+    --badge-fg: #fff;
+  }
+
+  /* HUD-style icon chip: rounded square with a bevel, like in-game side buttons */
+  .icon-chip {
+    --chip-top: var(--gold-300);
+    --chip-bottom: var(--gold-600);
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.6rem;
+    border: 2px solid var(--ink);
+    color: #fff;
+    background: linear-gradient(180deg, var(--chip-top), var(--chip-bottom));
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.45),
+      inset 0 -2px 0 rgb(0 0 0 / 0.2),
+      0 2px 0 var(--ink);
+  }
+  .icon-chip > svg {
+    filter: drop-shadow(0 1.5px 0 var(--ink));
+  }
+  .icon-chip-gold {
+    /* defaults */
+  }
+  .icon-chip-elixir {
+    --chip-top: #f59cff;
+    --chip-bottom: #9a2bb8;
+  }
+  .icon-chip-green {
+    --chip-top: #a8ee70;
+    --chip-bottom: #2f8a1c;
+  }
+  .icon-chip-sky {
+    --chip-top: #8fdcff;
+    --chip-bottom: #1673c9;
+  }
+  .icon-chip-stone {
+    --chip-top: #4a668f;
+    --chip-bottom: #22385a;
+  }
+  .icon-chip-red {
+    --chip-top: #ff9c8f;
+    --chip-bottom: #b3161f;
+  }
+  .icon-chip-discord {
+    --chip-top: #9aa3ff;
+    --chip-bottom: #3c45c9;
+  }
+
+  /* Red notification pip with a white ring */
+  .pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ff6b5e, var(--ruby-dark));
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1.5px var(--ink);
+    color: #fff;
+    font-family: var(--font-display-face), system-ui, sans-serif;
+    font-size: 0.7rem;
+    line-height: 1;
+    text-shadow: 0 1px 0 var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .animate-fade-in {
+    transition: none;
+    animation: none;
+  }
 }
