@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Lilita_One, Nunito } from "next/font/google";
+import { appUrl } from "@/lib/app-url";
 import "./globals.css";
 
 // Chunky rounded display face for headings, buttons and badges
@@ -17,10 +18,27 @@ const body = Nunito({
   display: "swap",
 });
 
+const description =
+  "Live-sync active builder, laboratory, and pet house queues for Clash of Clans. Track countdowns, pop builder potions, and receive Discord notifications.";
+
 export const metadata: Metadata = {
+  // Absolute base so the share image (app/opengraph-image.png) gets a full URL
+  metadataBase: new URL(appUrl()),
   title: "ClashSync | Clash of Clans Village Queue & Timer Sync",
-  description:
-    "Live-sync active builder, laboratory, and pet house queues for Clash of Clans. Track countdowns, pop builder potions, and receive Discord notifications.",
+  description,
+  applicationName: "ClashSync",
+  openGraph: {
+    type: "website",
+    siteName: "ClashSync",
+    title: "ClashSync | Clash of Clans Village Queue & Timer Sync",
+    description,
+  },
+  twitter: { card: "summary_large_image" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0c1828",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
