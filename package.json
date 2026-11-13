@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "qstash:schedule": "tsx scripts/setup-qstash-schedule.ts"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "qstash:schedule": "tsx scripts/setup-qstash-schedule.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:baseline": "tsx scripts/db-baseline.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
@@ -29,7 +34,8 @@
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   },
   "packageManager": "pnpm@12.5.1",
   "pnpm": {
