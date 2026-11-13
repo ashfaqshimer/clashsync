@@ -162,6 +162,7 @@ export function LiveDashboard({
           tag={village.playerTag}
           webhookOn={village.webhookAlerts}
           dmOn={village.dmAlerts}
+          leadMinutes={village.alertLeadMinutes}
           dmAvailable={ownership.dmAvailable}
           isAccountOwner={ownership.state === "account_owner"}
         />

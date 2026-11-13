@@ -11,10 +11,11 @@ import {
   type SendResult,
 } from "@/lib/discord";
 import { appUrl } from "@/lib/app-url";
+import { isAlertLead } from "@/lib/alerts";
 import { getVillageAccess } from "@/lib/ownership";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 
-type Body = { tag?: unknown; webhookUrl?: unknown; dm?: unknown };
+type Body = { tag?: unknown; webhookUrl?: unknown; dm?: unknown; leadMinutes?: unknown };
 
 function fail(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
@@ -79,11 +80,24 @@ export async function PUT(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
-/** PATCH { tag, dm } → turn DM alerts on (sends a confirmation DM first) or off. */
+/**
+ * PATCH { tag, leadMinutes } → how early to alert (see lib/alerts.ts).
+ * PATCH { tag, dm } → turn DM alerts on (sends a confirmation DM first) or off.
+ */
 export async function PATCH(request: NextRequest) {
   const loaded = await loadOwnedVillage(request);
   if (loaded instanceof NextResponse) return loaded;
   const { user, tag, body } = loaded;
+
+  if (body.leadMinutes !== undefined) {
+    if (!isAlertLead(body.leadMinutes)) return fail("Pick one of the offered alert times.", 400);
+    await db
+      .update(users)
+      .set({ alertLeadMinutes: body.leadMinutes, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+    return NextResponse.json({ success: true });
+  }
+
   const dm = body.dm === true;
 
   if (dm) {

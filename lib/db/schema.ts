@@ -87,6 +87,8 @@ export const users = pgTable(
     ownerId: text("owner_id").references(() => authUsers.id, { onDelete: "set null" }),
     // Send completion alerts as a Discord DM to the owner (needs ownerId)
     dmAlerts: boolean("dm_alerts").default(false).notNull(),
+    // Alert this many minutes before an upgrade finishes (0 = when done). See lib/alerts.ts
+    alertLeadMinutes: integer("alert_lead_minutes").default(5).notNull(),
     playerName: text("player_name"),
     townHallLevel: integer("town_hall_level"),
     clanName: text("clan_name"),
@@ -131,7 +133,7 @@ export const upgrades = pgTable(
     isGearUp: boolean("is_gear_up").default(false).notNull(),
     isExtraSlot: boolean("is_extra_slot").default(false).notNull(),
     qstashMessageId: text("qstash_message_id"),
-    notifiedAt: timestamp("notified_at"), // Set when the notify sweep claims this finished upgrade
+    notifiedAt: timestamp("notified_at"), // Set when the notify sweep claims this upgrade (before or at its finish)
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

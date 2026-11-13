@@ -29,6 +29,8 @@ export interface VillageSnapshot {
   webhookAlerts: boolean;
   /** Alerts sent as a DM to the owner. */
   dmAlerts: boolean;
+  /** Minutes before a finish that alerts go out (0 = when done). */
+  alertLeadMinutes: number;
   builderBoostEndsAt: number | null;
   labBoostEndsAt: number | null;
   /** Most recent potion that can still be undone. */
@@ -90,6 +92,7 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
     isClaimed: Boolean(user.ownerId),
     webhookAlerts: Boolean(user.discordWebhookUrl),
     dmAlerts: user.dmAlerts,
+    alertLeadMinutes: user.alertLeadMinutes,
     builderBoostEndsAt: user.builderBoostEndsAt,
     labBoostEndsAt: user.labBoostEndsAt,
     undoableBoost: latestBoost

@@ -1,13 +1,13 @@
-import { and, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { authAccounts, upgrades, users } from "@/lib/db/schema";
 import { appUrl } from "@/lib/app-url";
+import { alertMessage, SWEEP_INTERVAL_SECONDS } from "@/lib/alerts";
 import { sendDiscordDm, sendDiscordMessage } from "@/lib/discord";
 import { tagToSlug } from "@/lib/tags";
 
 /** Finished longer ago than this (cron gap, old export re-synced) → don't announce. */
 const STALE_AFTER_SECONDS = 30 * 60;
-const MAX_LINES = 15;
 
 interface Finished {
   id: string;
@@ -19,17 +19,6 @@ interface Finished {
 
 export { appUrl };
 
-export function completionMessage(tag: string, items: Pick<Finished, "entityName" | "targetLevel">[]): string {
-  const link = `${appUrl()}/v/${tagToSlug(tag)}`;
-  if (items.length === 1) {
-    const [u] = items;
-    return `🔨 Chief, your **${u.entityName} Level ${u.targetLevel}** has finished upgrading! (${tag})\n${link}`;
-  }
-  const lines = items.slice(0, MAX_LINES).map((u) => `• ${u.entityName} → Level ${u.targetLevel}`);
-  if (items.length > MAX_LINES) lines.push(`…and ${items.length - MAX_LINES} more`);
-  return `🔨 Chief, **${items.length} upgrades** have finished! (${tag})\n${lines.join("\n")}\n${link}`;
-}
-
 export interface SweepSummary {
   claimed: number;
   sent: number;
@@ -40,19 +29,24 @@ export interface SweepSummary {
 }
 
 /**
- * Claims every ACTIVE upgrade that has finished and hasn't been notified, then
- * sends one Discord message per village. The claim is a single UPDATE … WHERE
- * notified_at IS NULL, so overlapping runs can never notify the same upgrade.
+ * Claims every ACTIVE, un-notified upgrade that finishes within its village's
+ * alert lead time (see lib/alerts.ts), then sends one Discord message per
+ * village. The claim is a single UPDATE … WHERE notified_at IS NULL, so
+ * overlapping runs can never notify the same upgrade.
  */
 export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)): Promise<SweepSummary> {
+  // Same as alertCutoff(), per village: lead > 0 adds one sweep interval
+  const cutoff = sql`${now} + ${users.alertLeadMinutes} * 60 + case when ${users.alertLeadMinutes} > 0 then ${SWEEP_INTERVAL_SECONDS} else 0 end`;
   const claimed: Finished[] = await db
     .update(upgrades)
     .set({ notifiedAt: new Date() })
+    .from(users)
     .where(
       and(
+        eq(upgrades.userId, users.id),
         eq(upgrades.status, "ACTIVE"),
         isNull(upgrades.notifiedAt),
-        lte(upgrades.currentFinishTime, now)
+        lte(upgrades.currentFinishTime, cutoff)
       )
     )
     .returning({
@@ -107,7 +101,12 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
       }
 
       const sorted = [...items].sort((a, b) => a.currentFinishTime - b.currentFinishTime);
-      const content = completionMessage(recipient.playerTag, sorted);
+      const content = alertMessage(
+        recipient.playerTag,
+        sorted,
+        now,
+        `${appUrl()}/v/${tagToSlug(recipient.playerTag)}`
+      );
       const results = await Promise.all([
         ...(recipient.webhook ? [sendDiscordMessage(recipient.webhook, content)] : []),
         ...(dmTo ? [sendDiscordDm(dmTo, content)] : []),

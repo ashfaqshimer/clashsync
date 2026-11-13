@@ -13,6 +13,7 @@ config({ path: ".env.local", quiet: true });
 
 const SCHEDULE_ID = "clashsync-notify";
 // Every 2 minutes = 720 calls/day, which fits QStash's free daily message quota
+// If you change this, update SWEEP_INTERVAL_SECONDS in lib/alerts.ts
 const CRON = "*/2 * * * *";
 
 async function main() {

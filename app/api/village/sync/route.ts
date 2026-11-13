@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNotNull, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/lib/db";
 import { boosts, users, upgrades } from "@/lib/db/schema";
 import { parseVillageExport } from "@/lib/parser";
+import { carryOverNotified } from "@/lib/alerts";
 import { getSessionUser } from "@/lib/auth";
 import { accessDeniedMessage, getVillageAccess } from "@/lib/ownership";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
@@ -118,9 +119,34 @@ export async function POST(request: NextRequest) {
         ];
 
     if (parseResult.upgrades.length > 0) {
+      // Don't re-alert upgrades the previous sync already alerted
+      const previous = user
+        ? await db
+            .select({
+              dataId: upgrades.dataId,
+              targetLevel: upgrades.targetLevel,
+              villageType: upgrades.villageType,
+              isGearUp: upgrades.isGearUp,
+              notifiedAt: upgrades.notifiedAt,
+            })
+            .from(upgrades)
+            .where(
+              and(
+                eq(upgrades.userId, userId),
+                eq(upgrades.status, "ACTIVE"),
+                isNotNull(upgrades.notifiedAt)
+              )
+            )
+        : [];
+      const notified = carryOverNotified(
+        previous,
+        parseResult.upgrades.map((item) => ({ ...item, isGearUp: Boolean(item.isGearUp) }))
+      );
+
       statements.push(
         db.insert(upgrades).values(
-          parseResult.upgrades.map((item) => ({
+          parseResult.upgrades.map((item, i) => ({
+            notifiedAt: notified[i],
             id: crypto.randomUUID(),
             userId,
             dataId: item.dataId,

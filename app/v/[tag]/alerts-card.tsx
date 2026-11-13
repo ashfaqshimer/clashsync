@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BellRing, Loader2, MessageCircle } from "lucide-react";
+import { ALERT_LEAD_OPTIONS, alertLeadLabel, SWEEP_INTERVAL_SECONDS } from "@/lib/alerts";
 
-type Action = "save" | "test" | "remove" | "dm-on" | "dm-off";
+type Action = "save" | "test" | "remove" | "dm-on" | "dm-off" | "lead";
 
 const METHOD: Record<Action, string> = {
   save: "PUT",
@@ -12,6 +13,7 @@ const METHOD: Record<Action, string> = {
   remove: "DELETE",
   "dm-on": "PATCH",
   "dm-off": "PATCH",
+  lead: "PATCH",
 };
 
 const SUCCESS: Record<Action, string> = {
@@ -20,18 +22,21 @@ const SUCCESS: Record<Action, string> = {
   remove: "Channel alerts turned off.",
   "dm-on": "DM alerts are on. Check your Discord DMs for a confirmation.",
   "dm-off": "DM alerts turned off.",
+  lead: "Alert time saved.",
 };
 
 export function AlertsCard({
   tag,
   webhookOn,
   dmOn,
+  leadMinutes,
   dmAvailable,
   isAccountOwner,
 }: {
   tag: string;
   webhookOn: boolean;
   dmOn: boolean;
+  leadMinutes: number;
   dmAvailable: boolean;
   /** DMs go to the owning account, so a legacy (not linked) owner can't use them. */
   isAccountOwner: boolean;
@@ -43,7 +48,7 @@ export function AlertsCard({
   const [message, setMessage] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
   const anyOn = webhookOn || dmOn;
 
-  const call = async (action: Action) => {
+  const call = async (action: Action, lead?: number) => {
     setPending(action);
     setMessage(null);
     try {
@@ -54,6 +59,7 @@ export function AlertsCard({
           tag,
           webhookUrl: action === "save" ? webhookUrl : undefined,
           dm: action === "dm-on" ? true : action === "dm-off" ? false : undefined,
+          leadMinutes: action === "lead" ? lead : undefined,
         }),
       });
       const data = await res.json();
@@ -95,9 +101,28 @@ export function AlertsCard({
               </button>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Get a message within a couple of minutes of an upgrade finishing.
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-slate-400">
+            <label htmlFor="alert-lead">Alert me</label>
+            <select
+              id="alert-lead"
+              value={leadMinutes}
+              disabled={busy}
+              onChange={(e) => call("lead", Number(e.target.value))}
+              className="px-2 py-1 rounded-md bg-slate-950/90 border border-slate-700 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50"
+            >
+              {ALERT_LEAD_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {alertLeadLabel(m).toLowerCase()}
+                </option>
+              ))}
+            </select>
+            {spinner("lead")}
+            <span className="text-slate-500">
+              {leadMinutes > 0
+                ? `arrives ${leadMinutes}–${leadMinutes + SWEEP_INTERVAL_SECONDS / 60} min before an upgrade finishes, so you can be in the game for it`
+                : `arrives within ${SWEEP_INTERVAL_SECONDS / 60} min after an upgrade finishes`}
+            </span>
+          </div>
         </div>
       </div>
 
