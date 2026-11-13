@@ -2,9 +2,15 @@
  * Real Clash of Clans village export data fixture.
  * (Settings -> More Settings -> Data Export -> Copy)
  */
+/**
+ * Deliberately not a valid player tag (S, A, M, E aren't tag characters), so
+ * the sample can never be saved over a real village. The UI previews it only.
+ */
+export const SAMPLE_TAG = "#SAMPLE";
+
 export const SAMPLE_VILLAGE_JSON = JSON.stringify(
   {
-    tag: "#R8L9R2GVG",
+    tag: SAMPLE_TAG,
     timestamp: Math.floor(Date.now() / 1000) - 180,
     helpers: [
       { data: 93000000, lvl: 8, helper_cooldown: 64477 },

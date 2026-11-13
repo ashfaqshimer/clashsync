@@ -20,8 +20,8 @@ import {
   Shield,
   Loader2,
 } from "lucide-react";
-import { parseVillageExport } from "@/lib/parser";
-import { SAMPLE_VILLAGE_JSON } from "@/lib/sample-data";
+import { formatDuration, parseVillageExport } from "@/lib/parser";
+import { SAMPLE_TAG, SAMPLE_VILLAGE_JSON } from "@/lib/sample-data";
 import { ParseResult } from "@/lib/types";
 import { ClashPlayerProfile } from "@/lib/clash-api";
 
@@ -35,6 +35,7 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [dashboardPath, setDashboardPath] = useState<string | null>(null);
+  const [lookupNote, setLookupNote] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
@@ -77,6 +78,15 @@ export default function Home() {
       return;
     }
 
+    // The sample is preview-only so it can never overwrite a real village
+    if (localResult.playerTag === SAMPLE_TAG) {
+      setDashboardPath(null);
+      setSyncNotice(
+        "This is a sample village preview and wasn't saved. Paste your own export to track your village."
+      );
+      return;
+    }
+
     // 2. Persist to storage via API
     setIsSaving(true);
     try {
@@ -110,6 +120,8 @@ export default function Home() {
     setIsLoadingProfile(true);
     setApiError(null);
     setPlayerProfile(null);
+    setLookupNote(null);
+    setSyncNotice(null);
 
     const cleanTag = playerTagInput.trim().replace(/^#/, "");
     const formattedTag = `#${cleanTag}`;
@@ -155,8 +167,23 @@ export default function Home() {
           ).length,
           upgrades: dbData.upgrades,
         });
-        setSyncNotice(`Loaded tracked upgrades for ${dbData.playerTag}`);
         setDashboardPath(`/v/${String(dbData.playerTag).replace(/^#/, "")}`);
+        const ageSeconds = dbData.lastExportTimestamp
+          ? Math.floor(Date.now() / 1000) - dbData.lastExportTimestamp
+          : null;
+        setSyncNotice(
+          `Showing upgrades from your last export${
+            ageSeconds !== null ? `, ${formatDuration(ageSeconds)} ago` : ""
+          }.`
+        );
+        setLookupNote(
+          "Looking up a tag can't fetch new timers, because Clash of Clans only shares them through the village export. Paste a fresh export in the Export Data tab to update them."
+        );
+      } else if (dbRes.status === 404) {
+        setParseResult(null);
+        setLookupNote(
+          "No upgrades tracked for this tag yet. Paste your village export in the Export Data tab to start tracking."
+        );
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Network error";
@@ -425,8 +452,15 @@ export default function Home() {
 
                   <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
                     <Shield className="w-4 h-4 text-sky-400" />
-                    <span>Verified Supercell Profile</span>
+                    <span>Official Supercell profile</span>
                   </div>
+                </div>
+              )}
+
+              {lookupNote && (
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 text-xs text-amber-200">
+                  <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>{lookupNote}</span>
                 </div>
               )}
             </div>
