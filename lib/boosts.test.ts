@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boostedFinishTime, nextBoostWindow, POTIONS } from "./boosts";
+import { boostedFinishTime, finishWithRunningBoost, nextBoostWindow, POTIONS } from "./boosts";
 
 const HOUR = 3600;
 
@@ -50,5 +50,28 @@ describe("nextBoostWindow", () => {
 
   it("stacks after a boost that is still running", () => {
     expect(nextBoostWindow(100, 500, HOUR)).toEqual({ start: 500, end: 500 + HOUR });
+  });
+});
+
+describe("finishWithRunningBoost", () => {
+  const { multiplier } = POTIONS.RESEARCH_POTION; // 24×
+  const EXPORT = 1_000_000;
+
+  it("leaves the timer alone when no boost is running at export", () => {
+    expect(finishWithRunningBoost(EXPORT + 86400, EXPORT, null, multiplier)).toBe(EXPORT + 86400);
+    expect(finishWithRunningBoost(EXPORT + 86400, EXPORT, EXPORT - 1, multiplier)).toBe(EXPORT + 86400);
+  });
+
+  it("applies only the part of the boost left after the export", () => {
+    // 30 min of potion left saves 23 × 30 min
+    expect(finishWithRunningBoost(EXPORT + 86400, EXPORT, EXPORT + 1800, multiplier)).toBe(
+      EXPORT + 86400 - 23 * 1800
+    );
+  });
+
+  it("handles stacked potions as one longer window", () => {
+    expect(finishWithRunningBoost(EXPORT + 3 * 86400, EXPORT, EXPORT + 2 * HOUR, multiplier)).toBe(
+      EXPORT + 3 * 86400 - 23 * 2 * HOUR
+    );
   });
 });

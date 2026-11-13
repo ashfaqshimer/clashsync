@@ -66,3 +66,20 @@ export function nextBoostWindow(
   const start = Math.max(now, currentBoostEndsAt ?? 0);
   return { start, end: start + durationSeconds };
 }
+
+/**
+ * Finish time of an export timer when a potion is still running at export
+ * time. Export timers are normal-speed work, so the rest of the boost window
+ * (from the export until `boostEndsAt`) still applies. Used for the builder
+ * boost the export reports and for a Research Potion the app recorded (the
+ * export has no research-boost field).
+ */
+export function finishWithRunningBoost(
+  finishTime: number,
+  exportTimestamp: number,
+  boostEndsAt: number | null | undefined,
+  multiplier: number
+): number {
+  if (!boostEndsAt || boostEndsAt <= exportTimestamp) return finishTime;
+  return boostedFinishTime(finishTime, exportTimestamp, multiplier, boostEndsAt - exportTimestamp);
+}
