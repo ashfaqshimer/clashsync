@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "qstash:schedule": "tsx scripts/setup-qstash-schedule.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
+    "@upstash/qstash": "^2.12.1",
     "dotenv": "^18.0.10",
     "drizzle-orm": "^0.45.4",
     "lucide-react": "^1.71.0",

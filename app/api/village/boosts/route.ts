@@ -157,11 +157,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     const updatedAt = new Date();
+    const now = Math.floor(Date.now() / 1000);
     const statements: BatchItem<"pg">[] = [
       ...latest.changes.map((c) =>
         db
           .update(upgrades)
-          .set({ currentFinishTime: c.from, updatedAt })
+          // If the potion made it finish (and alert) early, re-arm the alert
+          .set({ currentFinishTime: c.from, updatedAt, ...(c.from > now ? { notifiedAt: null } : {}) })
           .where(eq(upgrades.id, c.upgradeId))
       ),
       db

@@ -55,6 +55,7 @@ export const upgrades = pgTable(
     isGearUp: boolean("is_gear_up").default(false).notNull(),
     isExtraSlot: boolean("is_extra_slot").default(false).notNull(),
     qstashMessageId: text("qstash_message_id"),
+    notifiedAt: timestamp("notified_at"), // Set when the notify sweep claims this finished upgrade
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

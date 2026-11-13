@@ -13,6 +13,7 @@ import {
 import type { ComponentType } from "react";
 import { formatDuration } from "@/lib/parser";
 import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
+import { AlertsCard } from "./alerts-card";
 import { OwnershipCard } from "./ownership-card";
 import { PotionBar } from "./potion-bar";
 import { useNow } from "./use-now";
@@ -153,6 +154,8 @@ export function LiveDashboard({
             ))}
         </div>
       )}
+
+      {isOwner && <AlertsCard tag={village.playerTag} enabled={village.alertsEnabled} />}
 
       <OwnershipCard tag={village.playerTag} isOwner={isOwner} isVerified={village.isVerified} />
     </div>

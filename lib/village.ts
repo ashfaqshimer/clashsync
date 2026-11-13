@@ -22,6 +22,8 @@ export interface VillageSnapshot {
   lastExportTimestamp: number | null;
   builderCount: number | null;
   isVerified: boolean;
+  /** Discord alerts configured. The webhook URL itself never leaves the server. */
+  alertsEnabled: boolean;
   builderBoostEndsAt: number | null;
   labBoostEndsAt: number | null;
   /** Most recent potion that can still be undone. */
@@ -58,6 +60,7 @@ export async function getVillage(tag: string): Promise<VillageSnapshot | null> {
     lastExportTimestamp: user.lastExportTimestamp,
     builderCount: user.builderCount,
     isVerified: Boolean(user.verifiedAt),
+    alertsEnabled: Boolean(user.discordWebhookUrl),
     builderBoostEndsAt: user.builderBoostEndsAt,
     labBoostEndsAt: user.labBoostEndsAt,
     undoableBoost: latestBoost

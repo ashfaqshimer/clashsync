@@ -33,6 +33,8 @@ app/
   api/village/upgrades/route.ts GET ?tag= → ACTIVE upgrades for that tag, remaining time recomputed from now
   api/player/[tag]/route.ts     GET → official Supercell API profile (lib/clash-api.ts)
   api/village/claim/route.ts    POST {tag, token} → verify in-game API token, set users.verified_at + owner cookie
+  api/village/notifications/route.ts  PUT/POST/DELETE Discord webhook for a verified owner
+  api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
   api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
   v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers)
 lib/
@@ -67,11 +69,15 @@ Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync AP
 
 Phase 5 done: Builder Potion (10× for 1h, ≤9h saved) and Research Potion (24× for 1h, ≤23h saved). Only `currentFinishTime` changes. Potions stack: the next one starts at `users.*_boost_ends_at`. Each potion is logged in `boosts` with the finish times it changed. Only the latest `APPLIED` one can be undone, and only if those times are unchanged. A re-sync marks earlier boosts `SUPERSEDED`. The export's `boosts.builder_boost` is applied at parse time. The export has no known research-boost field, so a running Research Potion is lost on re-sync.
 
+Phase 6 done: Discord alerts.
+- Verified owners save a Discord **webhook URL** on the dashboard (`/api/village/notifications`: PUT save, which sends a confirmation first, POST test, DELETE off). The URL is validated as a Discord webhook (SSRF guard) and never sent to the client (`alertsEnabled` only).
+- **One QStash schedule** (`pnpm qstash:schedule <public-url>`, id `clashsync-notify`, every 2 min) POSTs to `/api/cron/notify`. That endpoint verifies `upstash-signature`; unsigned requests are allowed only in dev. Per-upgrade QStash messages were deliberately not used, so `upgrades.qstash_message_id` is unused.
+- The sweep (`lib/notify.ts`) claims due rows with one `UPDATE … WHERE notified_at IS NULL RETURNING`, which prevents double sends, then sends one message per village. Upgrades finished more than 30 min ago are skipped. 429/5xx failures release the claim for retry. Undoing a potion re-arms the alert (clears `notified_at`).
+- Status stays `ACTIVE` after notifying (the dashboard shows "Done"). `COMPLETED` is still unused.
+
 Still to build:
-- **Upstash QStash** scheduling: one delayed message per upgrade, with the ID stored in `upgrades.qstash_message_id`. Cancel and reschedule on re-sync or potion.
-- **`/api/webhooks/notify`**: must verify the QStash signature (`QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY`), then send a Discord DM (bot) or post to the user's webhook. Example message: "Chief, your Eagle Artillery Level 7 has finished upgrading!"
-- **Discord linking** (OAuth/bot) and real auth (`AUTH_SECRET` is reserved).
-- Marking upgrades `COMPLETED`.
+- **Discord login** (OAuth) replacing tag-cookie ownership, multiple villages per account, bot DMs.
+- Phase 3 hardening (tests, migrations history, atomic sync).
 
 ## Conventions
 
