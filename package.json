@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "screenshots": "node scripts/screenshots.mjs",
     "qstash:schedule": "tsx scripts/setup-qstash-schedule.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
