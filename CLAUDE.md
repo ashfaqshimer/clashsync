@@ -21,6 +21,7 @@ Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn
 
 - **Next.js 16.4** App Router, React 19.3, TypeScript. `next.config.ts` enables `cacheComponents` and `partialPrefetching`. Read `node_modules/next/dist/docs/` before using Next APIs (see AGENTS.md). Route handler `params` is a **Promise** (`await params`).
 - **Tailwind CSS v4**, loaded through the `@tailwindcss/turbopack` loader configured in `next.config.ts`. **shadcn/ui is not installed**, despite what the docs say. The UI uses hand-written Tailwind plus `lucide-react` icons, with a dark, game-style look.
+- **Design system** (Clash-inspired, no Supercell fonts/logos/art): tokens and component classes live in `app/globals.css` (night-sky palette, `panel-wood` / `panel-stone` / `well`, bevelled `btn-*`, `badge-*`, `icon-chip-*`, `pip`, `heading-outline`, `field`, `.timer`). React wrappers are in `app/_components/ui/` (`Button`/`buttonClass()` for links, `Card`/`CardHeader`/`Heading`/`Well`, `Badge`/`IconChip`/`Pip`, `CategoryBadge`, `StatusTile`). Fonts via `next/font/google` in `app/layout.tsx`: **Lilita One** (display, `font-display`) and **Nunito** (body, has tabular figures). Use these instead of ad-hoc colour classes; wood panels are for the main section of a page, stone for everything else. Countdowns use `.timer` (tabular numbers) so digits don't jitter.
 - **Neon serverless Postgres + Drizzle ORM** (`drizzle-orm/neon-http`). The `neon-http` driver does **not** support interactive transactions, so multi-step writes use `db.batch([...])` (runs atomically). Generate ids up front (`crypto.randomUUID()`) so later statements in the batch can reference them.
 - Path alias `@/*` → repo root.
 
@@ -37,8 +38,10 @@ app/
   api/village/notifications/route.ts  PUT webhook · PATCH {dm} DM alerts · POST test · DELETE webhook (owner only)
   api/auth/[...all]/route.ts    Better Auth handler (Discord OAuth, sessions)
   api/account/after-login/route.ts  Post-login step: the bot adds the user to the ClashSync Discord server (for DMs)
-  villages/                     "My villages" list for the logged-in account
+  villages/                     "My villages" list for the logged-in account (page.tsx loads data; village-list-views.tsx renders it)
   _components/account-menu.tsx  Login button / avatar + log out (client, uses lib/auth-client)
+  _components/subpage-header.tsx  Header for inner pages (back to home, actions, account menu)
+  _components/ui/               Shared design-system components (see Stack → Design system)
   api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
   api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
   v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers)
