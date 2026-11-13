@@ -2,26 +2,59 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Loader2 } from "lucide-react";
+import { BellRing, Loader2, MessageCircle } from "lucide-react";
 
-type Action = "save" | "test" | "remove";
+type Action = "save" | "test" | "remove" | "dm-on" | "dm-off";
 
-export function AlertsCard({ tag, enabled }: { tag: string; enabled: boolean }) {
+const METHOD: Record<Action, string> = {
+  save: "PUT",
+  test: "POST",
+  remove: "DELETE",
+  "dm-on": "PATCH",
+  "dm-off": "PATCH",
+};
+
+const SUCCESS: Record<Action, string> = {
+  save: "Channel alerts are on. Check your Discord channel for a confirmation.",
+  test: "Test alert sent.",
+  remove: "Channel alerts turned off.",
+  "dm-on": "DM alerts are on. Check your Discord DMs for a confirmation.",
+  "dm-off": "DM alerts turned off.",
+};
+
+export function AlertsCard({
+  tag,
+  webhookOn,
+  dmOn,
+  dmAvailable,
+  isAccountOwner,
+}: {
+  tag: string;
+  webhookOn: boolean;
+  dmOn: boolean;
+  dmAvailable: boolean;
+  /** DMs go to the owning account, so a legacy (not linked) owner can't use them. */
+  isAccountOwner: boolean;
+}) {
   const router = useRouter();
   const [webhookUrl, setWebhookUrl] = useState("");
-  const [editing, setEditing] = useState(!enabled);
+  const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState<Action | null>(null);
   const [message, setMessage] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
+  const anyOn = webhookOn || dmOn;
 
   const call = async (action: Action) => {
     setPending(action);
     setMessage(null);
-    const method = action === "save" ? "PUT" : action === "test" ? "POST" : "DELETE";
     try {
       const res = await fetch("/api/village/notifications", {
-        method,
+        method: METHOD[action],
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tag, webhookUrl: action === "save" ? webhookUrl : undefined }),
+        body: JSON.stringify({
+          tag,
+          webhookUrl: action === "save" ? webhookUrl : undefined,
+          dm: action === "dm-on" ? true : action === "dm-off" ? false : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -31,13 +64,8 @@ export function AlertsCard({ tag, enabled }: { tag: string; enabled: boolean }) 
       if (action === "save") {
         setWebhookUrl("");
         setEditing(false);
-        setMessage({ text: "Alerts are on. Check your Discord channel for a confirmation.", tone: "ok" });
-      } else if (action === "test") {
-        setMessage({ text: "Test message sent to Discord.", tone: "ok" });
-      } else {
-        setEditing(true);
-        setMessage({ text: "Alerts turned off.", tone: "ok" });
       }
+      setMessage({ text: SUCCESS[action], tone: "ok" });
       router.refresh();
     } catch {
       setMessage({ text: "Couldn't reach ClashSync. Try again.", tone: "error" });
@@ -49,68 +77,117 @@ export function AlertsCard({ tag, enabled }: { tag: string; enabled: boolean }) 
   const spinner = (a: Action) => pending === a && <Loader2 className="w-3.5 h-3.5 animate-spin" />;
   const secondary =
     "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 disabled:opacity-50 transition cursor-pointer";
+  const busy = pending !== null;
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
       <div className="flex items-start gap-3">
-        <BellRing className={`w-5 h-5 shrink-0 mt-0.5 ${enabled ? "text-emerald-400" : "text-indigo-400"}`} />
-        <div>
-          <h2 className="text-sm font-semibold text-white">
-            Discord alerts {enabled && <span className="text-emerald-400 font-normal">· on</span>}
-          </h2>
+        <BellRing className={`w-5 h-5 shrink-0 mt-0.5 ${anyOn ? "text-emerald-400" : "text-indigo-400"}`} />
+        <div className="flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-white">
+              Discord alerts {anyOn && <span className="text-emerald-400 font-normal">· on</span>}
+            </h2>
+            {anyOn && (
+              <button type="button" onClick={() => call("test")} disabled={busy} className={secondary}>
+                {spinner("test")}
+                Send test
+              </button>
+            )}
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            {enabled
-              ? "You'll get a Discord message within a couple of minutes of an upgrade finishing."
-              : "Get a Discord message when an upgrade finishes. In Discord: Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL."}
+            Get a message within a couple of minutes of an upgrade finishing.
           </p>
         </div>
       </div>
 
-      {editing ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            call("save");
-          }}
-          className="flex flex-col sm:flex-row gap-2"
-        >
-          <input
-            value={webhookUrl}
-            onChange={(e) => setWebhookUrl(e.target.value)}
-            placeholder="https://discord.com/api/webhooks/…"
-            autoComplete="off"
-            spellCheck={false}
-            className="flex-1 px-3 py-2 bg-slate-950/90 border border-slate-800 rounded-lg font-mono text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-          />
-          <button
-            type="submit"
-            disabled={pending !== null || !webhookUrl.trim()}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer"
-          >
-            {spinner("save")}
-            Save
-          </button>
-          {enabled && (
-            <button type="button" onClick={() => setEditing(false)} className={secondary}>
-              Cancel
+      {/* Direct messages from the ClashSync bot */}
+      {dmAvailable && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <MessageCircle className={`w-4 h-4 ${dmOn ? "text-emerald-400" : "text-slate-500"}`} />
+            {isAccountOwner
+              ? dmOn
+                ? "Sending you a DM"
+                : "Get alerts as a Discord DM"
+              : "Log in with Discord to get alerts as DMs"}
+          </div>
+          {isAccountOwner && (
+            <button
+              type="button"
+              onClick={() => call(dmOn ? "dm-off" : "dm-on")}
+              disabled={busy}
+              className={
+                dmOn
+                  ? secondary
+                  : "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5865F2] hover:bg-[#4752c4] disabled:opacity-50 text-white text-xs font-semibold transition cursor-pointer"
+              }
+            >
+              {spinner("dm-on")}
+              {spinner("dm-off")}
+              {dmOn ? "Turn off" : "Turn on"}
             </button>
           )}
-        </form>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => call("test")} disabled={pending !== null} className={secondary}>
-            {spinner("test")}
-            Send test
-          </button>
-          <button type="button" onClick={() => setEditing(true)} disabled={pending !== null} className={secondary}>
-            Change webhook
-          </button>
-          <button type="button" onClick={() => call("remove")} disabled={pending !== null} className={secondary}>
-            {spinner("remove")}
-            Turn off
-          </button>
         </div>
       )}
+
+      {/* Channel webhook */}
+      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <BellRing className={`w-4 h-4 ${webhookOn ? "text-emerald-400" : "text-slate-500"}`} />
+            {webhookOn ? "Posting to a Discord channel" : "Post to a Discord channel (webhook)"}
+          </div>
+          {!editing && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setEditing(true)} disabled={busy} className={secondary}>
+                {webhookOn ? "Change webhook" : "Set up"}
+              </button>
+              {webhookOn && (
+                <button type="button" onClick={() => call("remove")} disabled={busy} className={secondary}>
+                  {spinner("remove")}
+                  Turn off
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {editing && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              call("save");
+            }}
+            className="space-y-2"
+          >
+            <p className="text-[11px] text-slate-500">
+              In Discord: Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                placeholder="https://discord.com/api/webhooks/…"
+                autoComplete="off"
+                spellCheck={false}
+                className="flex-1 px-3 py-2 bg-slate-950/90 border border-slate-800 rounded-lg font-mono text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+              />
+              <button
+                type="submit"
+                disabled={busy || !webhookUrl.trim()}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer"
+              >
+                {spinner("save")}
+                Save
+              </button>
+              <button type="button" onClick={() => setEditing(false)} className={secondary}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
 
       {message && (
         <p className={`text-xs ${message.tone === "ok" ? "text-emerald-400" : "text-rose-400"}`}>

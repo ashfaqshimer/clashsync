@@ -1,4 +1,5 @@
 import { Hammer } from "lucide-react";
+import { AccountMenu } from "@/app/_components/account-menu";
 
 export function SiteHeader() {
   return (
@@ -22,6 +23,7 @@ export function SiteHeader() {
             </p>
           </div>
         </div>
+        <AccountMenu />
       </div>
     </header>
   );

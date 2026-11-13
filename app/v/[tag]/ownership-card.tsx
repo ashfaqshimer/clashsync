@@ -1,31 +1,112 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Shield, ShieldCheck } from "lucide-react";
+import { Link2, Loader2, Shield, ShieldCheck } from "lucide-react";
+import { DiscordLoginButton } from "@/app/_components/account-menu";
 
-export function OwnershipCard({
-  tag,
-  isOwner,
-  isVerified,
-}: {
-  tag: string;
-  isOwner: boolean;
-  isVerified: boolean;
-}) {
+export type OwnershipState =
+  /** Linked to the viewer's account. */
+  | "account_owner"
+  /** Verified on this device before accounts existed, not linked yet. */
+  | "legacy_owner"
+  /** Nobody has claimed it. */
+  | "unclaimed"
+  /** Linked to someone else's account. */
+  | "claimed_other"
+  /** Verified the old way by someone else's device. */
+  | "legacy_protected";
+
+export interface OwnershipView {
+  state: OwnershipState;
+  loggedIn: boolean;
+  /** The server can send Discord DMs (bot configured). */
+  dmAvailable: boolean;
+}
+
+export function OwnershipCard({ tag, ownership }: { tag: string; ownership: OwnershipView }) {
+  const { state, loggedIn } = ownership;
+
+  if (state === "account_owner") {
+    return (
+      <section className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-sm text-emerald-200">
+        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+        This village is linked to your Discord account. Only you can sync {tag}, from any device.
+      </section>
+    );
+  }
+
+  if (state === "legacy_owner") {
+    return (
+      <Card icon={<Link2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />} title="Link this village to your account">
+        You verified {tag} on this device. Log in with Discord to link it, so you can sync it from
+        any device and get alerts as Discord DMs.
+        <div className="mt-3">
+          <DiscordLoginButton />
+        </div>
+      </Card>
+    );
+  }
+
+  if (state === "unclaimed") {
+    return (
+      <Card icon={<Shield className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />} title="Is this your village?">
+        {loggedIn ? (
+          <>
+            Sync it while you&apos;re logged in and it&apos;s linked to your account, so nobody else
+            can overwrite your timers.{" "}
+            <Link href="/" className="font-semibold text-sky-300 underline underline-offset-2 hover:text-white">
+              Sync now
+            </Link>
+          </>
+        ) : (
+          <>
+            Log in with Discord, then sync it, and it&apos;s yours: nobody else can overwrite your
+            timers, and you can get alerts when upgrades finish.
+            <div className="mt-3">
+              <DiscordLoginButton />
+            </div>
+          </>
+        )}
+      </Card>
+    );
+  }
+
+  // Claimed by someone else (or protected the old way): the API token settles it
+  return (
+    <Card
+      icon={<Shield className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />}
+      title={state === "claimed_other" ? "Linked to another account" : "This village is protected"}
+    >
+      If {tag} is yours, take it over with the API token from your game. It moves the village to your
+      account. In-game: Settings → More Settings → API Token → Show, then copy.
+      <div className="mt-3">
+        {loggedIn ? <TakeoverForm tag={tag} /> : <DiscordLoginButton label="Log in to take it over" />}
+      </div>
+    </Card>
+  );
+}
+
+function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-start gap-3">
+        {icon}
+        <div className="flex-1">
+          <h2 className="text-sm font-semibold text-white">{title}</h2>
+          <div className="text-xs text-slate-400 mt-1">{children}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TakeoverForm({ tag }: { tag: string }) {
   const router = useRouter();
   const [token, setToken] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (isOwner) {
-    return (
-      <section className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-sm text-emerald-200">
-        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-        You&apos;ve verified this village. Only verified devices can sync {tag}.
-      </section>
-    );
-  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,22 +133,7 @@ export function OwnershipCard({
   };
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
-      <div className="flex items-start gap-3">
-        <Shield className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
-        <div>
-          <h2 className="text-sm font-semibold text-white">
-            {isVerified ? "This village is protected" : "Is this your village? Protect it"}
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            {isVerified
-              ? "Verify with your API token to sync it from this device."
-              : "Verify once and nobody else can overwrite your timers. You'll need this before turning on Discord alerts."}{" "}
-            In-game: Settings → More Settings → API Token → Show, then copy.
-          </p>
-        </div>
-      </div>
-
+    <>
       <form onSubmit={submit} className="flex flex-col sm:flex-row gap-2">
         <input
           value={token}
@@ -84,10 +150,10 @@ export function OwnershipCard({
           className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold transition cursor-pointer"
         >
           {pending && <Loader2 className="w-4 h-4 animate-spin" />}
-          Verify
+          Take over
         </button>
       </form>
-      {error && <p className="text-xs text-rose-400">{error}</p>}
-    </section>
+      {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
+    </>
   );
 }

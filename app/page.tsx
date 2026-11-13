@@ -86,7 +86,9 @@ export default function Home() {
       const data = await res.json();
       if (res.ok && data.success) {
         setSyncNotice(
-          `Village synced! Tracking ${data.totalActiveUpgrades} active upgrades for ${data.playerTag}.`
+          `Village synced! Tracking ${data.totalActiveUpgrades} active upgrades for ${data.playerTag}.${
+            data.claimed ? " It's now linked to your account." : ""
+          }`
         );
         setDashboardPath(data.dashboardPath ?? null);
       } else {

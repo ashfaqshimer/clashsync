@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { getVillage } from "@/lib/village";
-import { ownsTag } from "@/lib/ownership";
+import { getVillageAccess } from "@/lib/ownership";
+import { isDmConfigured } from "@/lib/discord";
+import { AccountMenu } from "@/app/_components/account-menu";
+import type { OwnershipState } from "./ownership-card";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 import { LiveDashboard } from "./live-dashboard";
 
@@ -19,13 +22,17 @@ export default function VillagePage({ params }: PageProps<"/v/[tag]">) {
             <ArrowLeft className="w-4 h-4" />
             ClashSync
           </Link>
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Re-sync village
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Re-sync village</span>
+              <span className="sm:hidden">Re-sync</span>
+            </Link>
+            <AccountMenu />
+          </div>
         </div>
       </header>
 
@@ -47,9 +54,9 @@ async function Village({ slug }: { slug: string }) {
   // Canonical URL: uppercase, no '#', O→0
   if (tagToSlug(tag) !== slug) redirect(`/v/${tagToSlug(tag)}`);
 
-  const [village, isOwner] = await Promise.all([getVillage(tag), ownsTag(tag)]);
+  const loaded = await getVillage(tag);
 
-  if (!village) {
+  if (!loaded) {
     return (
       <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 text-center space-y-3">
         <h1 className="text-xl font-bold text-white">{tag} hasn&apos;t been synced yet</h1>
@@ -66,11 +73,24 @@ async function Village({ slug }: { slug: string }) {
     );
   }
 
+  const { village, ownership } = loaded;
+  const access = await getVillageAccess(ownership);
+  const state: OwnershipState = access.isOwner
+    ? ownership.ownerId
+      ? "account_owner"
+      : "legacy_owner"
+    : ownership.ownerId
+      ? "claimed_other"
+      : ownership.verifiedAt
+        ? "legacy_protected"
+        : "unclaimed";
+
   return (
     <LiveDashboard
       village={village}
-      isOwner={isOwner}
-      canEdit={isOwner || !village.isVerified}
+      isOwner={access.isOwner}
+      canEdit={access.canEdit}
+      ownership={{ state, loggedIn: access.viewer !== null, dmAvailable: isDmConfigured() }}
     />
   );
 }

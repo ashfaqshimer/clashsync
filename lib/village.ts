@@ -1,7 +1,8 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, min, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { boosts, upgrades, users } from "@/lib/db/schema";
 import type { PotionKind } from "@/lib/boosts";
+import type { VillageOwnership } from "@/lib/ownership";
 import type { UpgradeType } from "@/lib/types";
 
 /** Serializable shape handed to the client dashboard. Times are Unix seconds. */
@@ -22,8 +23,12 @@ export interface VillageSnapshot {
   lastExportTimestamp: number | null;
   builderCount: number | null;
   isVerified: boolean;
-  /** Discord alerts configured. The webhook URL itself never leaves the server. */
-  alertsEnabled: boolean;
+  /** Linked to some account (maybe not the viewer's). */
+  isClaimed: boolean;
+  /** Channel webhook saved. The URL itself never leaves the server. */
+  webhookAlerts: boolean;
+  /** Alerts sent as a DM to the owner. */
+  dmAlerts: boolean;
   builderBoostEndsAt: number | null;
   labBoostEndsAt: number | null;
   /** Most recent potion that can still be undone. */
@@ -32,7 +37,29 @@ export interface VillageSnapshot {
 }
 
 /** Loads a village and its ACTIVE upgrades. `tag` must be normalized ("#XXXX"). */
-export async function getVillage(tag: string): Promise<VillageSnapshot | null> {
+export interface LoadedVillage {
+  village: VillageSnapshot;
+  /** Server-only: feed to getVillageAccess(). Not for the client. */
+  ownership: VillageOwnership;
+}
+
+/** Villages linked to an account, newest sync first. */
+export async function getOwnedVillages(ownerId: string) {
+  return db
+    .select({
+      playerTag: users.playerTag,
+      lastExportTimestamp: users.lastExportTimestamp,
+      activeUpgrades: count(upgrades.id),
+      nextFinishTime: min(upgrades.currentFinishTime),
+    })
+    .from(users)
+    .leftJoin(upgrades, and(eq(upgrades.userId, users.id), eq(upgrades.status, "ACTIVE")))
+    .where(eq(users.ownerId, ownerId))
+    .groupBy(users.id)
+    .orderBy(sql`${users.lastExportTimestamp} desc nulls last`);
+}
+
+export async function getVillage(tag: string): Promise<LoadedVillage | null> {
   const [user] = await db
     .select()
     .from(users)
@@ -55,12 +82,14 @@ export async function getVillage(tag: string): Promise<VillageSnapshot | null> {
       .limit(1),
   ]);
 
-  return {
+  const village: VillageSnapshot = {
     playerTag: user.playerTag ?? tag,
     lastExportTimestamp: user.lastExportTimestamp,
     builderCount: user.builderCount,
     isVerified: Boolean(user.verifiedAt),
-    alertsEnabled: Boolean(user.discordWebhookUrl),
+    isClaimed: Boolean(user.ownerId),
+    webhookAlerts: Boolean(user.discordWebhookUrl),
+    dmAlerts: user.dmAlerts,
     builderBoostEndsAt: user.builderBoostEndsAt,
     labBoostEndsAt: user.labBoostEndsAt,
     undoableBoost: latestBoost
@@ -77,5 +106,9 @@ export async function getVillage(tag: string): Promise<VillageSnapshot | null> {
       isGearUp: row.isGearUp,
       isExtraSlot: row.isExtraSlot,
     })),
+  };
+  return {
+    village,
+    ownership: { playerTag: user.playerTag, ownerId: user.ownerId, verifiedAt: user.verifiedAt },
   };
 }
