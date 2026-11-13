@@ -13,23 +13,24 @@ Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn
 - `pnpm dev` — dev server (Turbopack) on http://localhost:3000
 - `pnpm build` / `pnpm start`
 - `pnpm lint` — ESLint 9 flat config (`eslint.config.mjs`)
-- `pnpm drizzle-kit push` — sync `lib/db/schema.ts` to Neon (reads `DATABASE_URL` from `.env.local`). No `drizzle/` migrations folder is committed yet; `generate`/`migrate` would write there.
-
-There is no test runner yet. Verify parser changes by loading the sample village in the UI (`lib/sample-data.ts`) or by running a script with `tsx`.
+- `pnpm test` / `pnpm test:watch` — Vitest (`vitest.config.mts`, `@/` alias set up). Tests sit next to the code as `*.test.ts`; they cover the pure modules (`parser`, `boosts`, `tags`). No DB or route tests yet.
+- Schema changes: edit `lib/db/schema.ts` → `pnpm db:generate --name <change>` → review the SQL in `drizzle/` → `pnpm db:migrate`. Commit the `drizzle/` folder. Don't use `drizzle-kit push` any more (it bypasses the history).
+- `pnpm db:baseline` — one-off for a database created with `push`: records `0000_baseline` as applied so `db:migrate` doesn't re-create existing tables. Idempotent.
 
 ## Stack (as built)
 
 - **Next.js 16.4** App Router, React 19.3, TypeScript. `next.config.ts` enables `cacheComponents` and `partialPrefetching`. Read `node_modules/next/dist/docs/` before using Next APIs (see AGENTS.md). Route handler `params` is a **Promise** (`await params`).
 - **Tailwind CSS v4**, loaded through the `@tailwindcss/turbopack` loader configured in `next.config.ts`. **shadcn/ui is not installed**, despite what the docs say. The UI uses hand-written Tailwind plus `lucide-react` icons, with a dark, game-style look.
-- **Neon serverless Postgres + Drizzle ORM** (`drizzle-orm/neon-http`). The `neon-http` driver does **not** support interactive transactions, so multi-step writes (like the sync route) are separate statements.
+- **Neon serverless Postgres + Drizzle ORM** (`drizzle-orm/neon-http`). The `neon-http` driver does **not** support interactive transactions, so multi-step writes use `db.batch([...])` (runs atomically). Generate ids up front (`crypto.randomUUID()`) so later statements in the batch can reference them.
 - Path alias `@/*` → repo root.
 
 ## Layout
 
 ```
 app/
-  page.tsx                      Single "use client" page (~575 lines): JSON paste tab + player-tag lookup tab, results dashboard
-  api/village/sync/route.ts     POST {rawJson, playerTag?} → parse, upsert user by tag, CANCEL old ACTIVE upgrades, insert new
+  page.tsx                      "use client" home page: state + handlers for the JSON paste tab, tag lookup tab and results
+  _home/                        Presentational pieces of the home page (export-tab, tag-lookup-tab, notices, upgrade-results, site-header)
+  api/village/sync/route.ts     POST {rawJson, playerTag?} → parse, upsert user by tag, CANCEL old ACTIVE upgrades, insert new (one db.batch)
   api/village/upgrades/route.ts GET ?tag= → ACTIVE upgrades for that tag, remaining time recomputed from now
   api/player/[tag]/route.ts     GET → official Supercell API profile (lib/clash-api.ts)
   api/village/claim/route.ts    POST {tag, token} → verify in-game API token, set users.verified_at + owner cookie
@@ -65,7 +66,7 @@ lib/
 
 ## Roadmap / not built yet
 
-Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync API, Supercell player lookup), Phase 4 (`/v/[tag]` live dashboard, stale-export warning, idle builder/lab/pet status, API-token ownership). Phase 3 (Vitest, `db.batch` atomic sync, committed migrations, splitting `app/page.tsx`) was skipped and is still open.
+Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync API, Supercell player lookup), Phase 4 (`/v/[tag]` live dashboard, stale-export warning, idle builder/lab/pet status, API-token ownership). Phase 3 done (done after Phase 6): Vitest for the pure modules, atomic `db.batch` sync, a committed `drizzle/` migration history starting at `0000_baseline`, and `app/page.tsx` split into `app/_home/`.
 
 Phase 5 done: Builder Potion (10× for 1h, ≤9h saved) and Research Potion (24× for 1h, ≤23h saved). Only `currentFinishTime` changes. Potions stack: the next one starts at `users.*_boost_ends_at`. Each potion is logged in `boosts` with the finish times it changed. Only the latest `APPLIED` one can be undone, and only if those times are unchanged. A re-sync marks earlier boosts `SUPERSEDED`. The export's `boosts.builder_boost` is applied at parse time. The export has no known research-boost field, so a running Research Potion is lost on re-sync.
 
@@ -77,7 +78,7 @@ Phase 6 done: Discord alerts.
 
 Still to build:
 - **Discord login** (OAuth) replacing tag-cookie ownership, multiple villages per account, bot DMs.
-- Phase 3 hardening (tests, migrations history, atomic sync).
+- Tests for the API routes and `lib/notify.ts` (they need a DB or mocks).
 
 ## Conventions
 
