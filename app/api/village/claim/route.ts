@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { villages } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { verifyPlayerToken } from "@/lib/clash-api";
-import { getLegacyOwnedTags } from "@/lib/ownership";
 import { normalizeTag } from "@/lib/tags";
 
 function fail(error: string, status: number) {
@@ -45,29 +44,26 @@ export async function POST(request: NextRequest) {
 
   try {
     const [existing] = await db
-      .select({ id: users.id, ownerId: users.ownerId })
-      .from(users)
-      .where(eq(users.playerTag, tag))
+      .select({ id: villages.id, ownerId: villages.ownerId })
+      .from(villages)
+      .where(eq(villages.playerTag, tag))
       .limit(1);
 
     const now = new Date();
     if (existing) {
-      // Alerts follow the person: keep them only if this is the same owner
-      // (same account, or the legacy owner of an unclaimed village)
-      const sameOwner =
-        existing.ownerId === viewer.id ||
-        (existing.ownerId === null && (await getLegacyOwnedTags()).includes(tag));
+      // Alerts follow the person: a new owner starts with them off
+      const sameOwner = existing.ownerId === viewer.id;
       await db
-        .update(users)
+        .update(villages)
         .set({
           ownerId: viewer.id,
           verifiedAt: now,
           updatedAt: now,
           ...(sameOwner ? {} : { discordWebhookUrl: null, dmAlerts: false }),
         })
-        .where(eq(users.id, existing.id));
+        .where(eq(villages.id, existing.id));
     } else {
-      await db.insert(users).values({
+      await db.insert(villages).values({
         id: crypto.randomUUID(),
         playerTag: tag,
         ownerId: viewer.id,

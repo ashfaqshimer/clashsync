@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { users, upgrades } from "@/lib/db/schema";
+import { villages, upgrades } from "@/lib/db/schema";
 import { formatDuration } from "@/lib/parser";
 import { normalizeTag } from "@/lib/tags";
 
@@ -25,26 +25,26 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const existingUsers = await db
+    const existingVillages = await db
       .select()
-      .from(users)
-      .where(eq(users.playerTag, formattedTag))
+      .from(villages)
+      .where(eq(villages.playerTag, formattedTag))
       .limit(1);
 
-    if (existingUsers.length === 0) {
+    if (existingVillages.length === 0) {
       return NextResponse.json(
         { success: false, error: `No village synced yet for tag ${formattedTag}` },
         { status: 404 }
       );
     }
 
-    const user = existingUsers[0];
+    const village = existingVillages[0];
 
     const activeUpgrades = await db
       .select()
       .from(upgrades)
       .where(
-        and(eq(upgrades.userId, user.id), eq(upgrades.status, "ACTIVE"))
+        and(eq(upgrades.villageId, village.id), eq(upgrades.status, "ACTIVE"))
       )
       .orderBy(upgrades.currentFinishTime);
 
@@ -78,8 +78,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      playerTag: user.playerTag,
-      lastExportTimestamp: user.lastExportTimestamp,
+      playerTag: village.playerTag,
+      lastExportTimestamp: village.lastExportTimestamp,
       totalActiveUpgrades: formattedList.length,
       upgrades: formattedList,
     });

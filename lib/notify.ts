@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { authAccounts, upgrades, users } from "@/lib/db/schema";
+import { authAccounts, upgrades, villages } from "@/lib/db/schema";
 import { appUrl } from "@/lib/app-url";
 import { alertMessage, SWEEP_INTERVAL_SECONDS } from "@/lib/alerts";
 import { sendDiscordDm, sendDiscordMessage } from "@/lib/discord";
@@ -11,7 +11,7 @@ const STALE_AFTER_SECONDS = 30 * 60;
 
 interface Finished {
   id: string;
-  userId: string;
+  villageId: string;
   entityName: string;
   targetLevel: number;
   currentFinishTime: number;
@@ -36,14 +36,14 @@ export interface SweepSummary {
  */
 export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)): Promise<SweepSummary> {
   // Same as alertCutoff(), per village: lead > 0 adds one sweep interval
-  const cutoff = sql`${now} + ${users.alertLeadMinutes} * 60 + case when ${users.alertLeadMinutes} > 0 then ${SWEEP_INTERVAL_SECONDS} else 0 end`;
+  const cutoff = sql`${now} + ${villages.alertLeadMinutes} * 60 + case when ${villages.alertLeadMinutes} > 0 then ${SWEEP_INTERVAL_SECONDS} else 0 end`;
   const claimed: Finished[] = await db
     .update(upgrades)
     .set({ notifiedAt: new Date() })
-    .from(users)
+    .from(villages)
     .where(
       and(
-        eq(upgrades.userId, users.id),
+        eq(upgrades.villageId, villages.id),
         eq(upgrades.status, "ACTIVE"),
         isNull(upgrades.notifiedAt),
         lte(upgrades.currentFinishTime, cutoff)
@@ -51,7 +51,7 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
     )
     .returning({
       id: upgrades.id,
-      userId: upgrades.userId,
+      villageId: upgrades.villageId,
       entityName: upgrades.entityName,
       targetLevel: upgrades.targetLevel,
       currentFinishTime: upgrades.currentFinishTime,
@@ -71,29 +71,29 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
   summary.skippedStale = claimed.length - fresh.length;
   if (fresh.length === 0) return summary;
 
-  const byUser = new Map<string, Finished[]>();
-  for (const u of fresh) byUser.set(u.userId, [...(byUser.get(u.userId) ?? []), u]);
+  const byVillage = new Map<string, Finished[]>();
+  for (const u of fresh) byVillage.set(u.villageId, [...(byVillage.get(u.villageId) ?? []), u]);
 
   // Destinations: the channel webhook and/or a DM to the owner's Discord account
   const recipients = await db
     .select({
-      id: users.id,
-      playerTag: users.playerTag,
-      webhook: users.discordWebhookUrl,
-      dmAlerts: users.dmAlerts,
+      id: villages.id,
+      playerTag: villages.playerTag,
+      webhook: villages.discordWebhookUrl,
+      dmAlerts: villages.dmAlerts,
       discordId: authAccounts.accountId,
     })
-    .from(users)
+    .from(villages)
     .leftJoin(
       authAccounts,
-      and(eq(authAccounts.userId, users.ownerId), eq(authAccounts.providerId, "discord"))
+      and(eq(authAccounts.userId, villages.ownerId), eq(authAccounts.providerId, "discord"))
     )
-    .where(inArray(users.id, [...byUser.keys()]));
+    .where(inArray(villages.id, [...byVillage.keys()]));
   const recipientById = new Map(recipients.map((r) => [r.id, r]));
 
   await Promise.all(
-    [...byUser.entries()].map(async ([userId, items]) => {
-      const recipient = recipientById.get(userId);
+    [...byVillage.entries()].map(async ([villageId, items]) => {
+      const recipient = recipientById.get(villageId);
       const dmTo = recipient?.dmAlerts ? recipient.discordId : null;
       if (!recipient?.playerTag || (!recipient.webhook && !dmTo)) {
         summary.skippedNoDestination += items.length;

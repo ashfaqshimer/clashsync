@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, and, isNotNull, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/lib/db";
-import { boosts, users, upgrades } from "@/lib/db/schema";
+import { boosts, villages, upgrades } from "@/lib/db/schema";
 import { parseVillageExport } from "@/lib/parser";
 import { carryOverNotified } from "@/lib/alerts";
+import { finishWithRunningBoost, POTIONS } from "@/lib/boosts";
 import { getSessionUser } from "@/lib/auth";
 import { accessDeniedMessage, getVillageAccess } from "@/lib/ownership";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
@@ -43,42 +44,56 @@ export async function POST(request: NextRequest) {
     }
     const exportTimestamp = parseResult.exportTimestamp || Math.floor(Date.now() / 1000);
 
-    const existingUsers = await db
+    const existingVillages = await db
       .select()
-      .from(users)
-      .where(eq(users.playerTag, playerTag))
+      .from(villages)
+      .where(eq(villages.playerTag, playerTag))
       .limit(1);
 
     // Claimed villages only sync for their account; a logged-in sync of an
     // unclaimed village claims it (see lib/ownership.ts)
-    const access = existingUsers[0]
-      ? await getVillageAccess(existingUsers[0])
-      : { viewer: await getSessionUser(), canEdit: true, shouldClaim: true, reason: undefined };
+    const access = existingVillages[0]
+      ? await getVillageAccess(existingVillages[0])
+      : { viewer: await getSessionUser(), canEdit: true, shouldClaim: true };
     if (!access.canEdit) {
       return NextResponse.json(
-        { success: false, error: accessDeniedMessage(playerTag, access.reason) },
+        { success: false, error: accessDeniedMessage(playerTag) },
         { status: 403 }
       );
     }
     const claimFor = access.shouldClaim ? (access.viewer?.id ?? null) : null;
 
-    // The export is the new source of truth for builder boosts. The export
-    // format has no known research-boost field, so that resets to none.
+    // The export is the source of truth for builder boosts. It has no
+    // research-boost field, so a Research Potion applied in the app that is
+    // still running at export time is kept and re-applied to lab timers.
+    const runningLabBoost =
+      existingVillages[0]?.labBoostEndsAt && existingVillages[0].labBoostEndsAt > exportTimestamp
+        ? existingVillages[0].labBoostEndsAt
+        : null;
     const boostFields = {
       builderBoostEndsAt: parseResult.builderBoostEndsAt ?? null,
-      labBoostEndsAt: null,
+      labBoostEndsAt: runningLabBoost,
     };
+    const finishTimeFor = (item: (typeof parseResult.upgrades)[number]) =>
+      item.category === POTIONS.RESEARCH_POTION.category && item.villageType === "HOME"
+        ? finishWithRunningBoost(
+            item.currentFinishTime,
+            exportTimestamp,
+            runningLabBoost,
+            POTIONS.RESEARCH_POTION.multiplier
+          )
+        : item.currentFinishTime;
 
     // All writes go in one batch so a failure can't leave the village with its
     // old upgrades cancelled but no new ones (neon-http has no transactions).
-    const user = existingUsers[0];
-    const userId = user?.id ?? crypto.randomUUID();
+    const village = existingVillages[0];
+    const villageId = village?.id ?? crypto.randomUUID();
     const updatedAt = new Date();
 
-    const statements: BatchItem<"pg">[] = user
+    const statements: BatchItem<"pg">[] = village
       ? [
           db
-            .update(users)
+            .update(villages)
             .set({
               lastExportTimestamp: exportTimestamp,
               ...(parseResult.builderHutCount
@@ -87,29 +102,29 @@ export async function POST(request: NextRequest) {
               ...boostFields,
               updatedAt,
             })
-            .where(eq(users.id, userId)),
+            .where(eq(villages.id, villageId)),
           // Potions applied before this sync can no longer be undone
           db
             .update(boosts)
             .set({ status: "SUPERSEDED" })
-            .where(and(eq(boosts.userId, userId), eq(boosts.status, "APPLIED"))),
+            .where(and(eq(boosts.villageId, villageId), eq(boosts.status, "APPLIED"))),
           // Upgrades from the previous sync are replaced by this one
           db
             .update(upgrades)
             .set({ status: "CANCELLED", updatedAt })
-            .where(and(eq(upgrades.userId, userId), eq(upgrades.status, "ACTIVE"))),
+            .where(and(eq(upgrades.villageId, villageId), eq(upgrades.status, "ACTIVE"))),
           ...(claimFor
             ? [
                 db
-                  .update(users)
+                  .update(villages)
                   .set({ ownerId: claimFor })
-                  .where(and(eq(users.id, userId), isNull(users.ownerId))),
+                  .where(and(eq(villages.id, villageId), isNull(villages.ownerId))),
               ]
             : []),
         ]
       : [
-          db.insert(users).values({
-            id: userId,
+          db.insert(villages).values({
+            id: villageId,
             playerTag,
             ownerId: claimFor,
             lastExportTimestamp: exportTimestamp,
@@ -120,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     if (parseResult.upgrades.length > 0) {
       // Don't re-alert upgrades the previous sync already alerted
-      const previous = user
+      const previous = village
         ? await db
             .select({
               dataId: upgrades.dataId,
@@ -132,7 +147,7 @@ export async function POST(request: NextRequest) {
             .from(upgrades)
             .where(
               and(
-                eq(upgrades.userId, userId),
+                eq(upgrades.villageId, villageId),
                 eq(upgrades.status, "ACTIVE"),
                 isNotNull(upgrades.notifiedAt)
               )
@@ -148,7 +163,7 @@ export async function POST(request: NextRequest) {
           parseResult.upgrades.map((item, i) => ({
             notifiedAt: notified[i],
             id: crypto.randomUUID(),
-            userId,
+            villageId,
             dataId: item.dataId,
             entityName: item.name,
             category: item.category,
@@ -157,7 +172,7 @@ export async function POST(request: NextRequest) {
             targetLevel: item.targetLevel,
             remainingSecondsAtExport: item.remainingSeconds,
             originalFinishTime: item.originalFinishTime,
-            currentFinishTime: item.currentFinishTime,
+            currentFinishTime: finishTimeFor(item),
             status: "ACTIVE",
             isGearUp: Boolean(item.isGearUp),
             isExtraSlot: Boolean(item.isGoblinOrHelper),
@@ -172,7 +187,7 @@ export async function POST(request: NextRequest) {
       success: true,
       playerTag,
       dashboardPath: `/v/${tagToSlug(playerTag)}`,
-      userId,
+      villageId,
       // True when this sync linked the village to the logged-in account
       claimed: claimFor !== null,
       exportTimestamp,

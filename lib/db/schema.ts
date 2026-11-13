@@ -10,10 +10,9 @@ import {
 } from "drizzle-orm/pg-core";
 
 /*
- * Login (Better Auth + Discord). These are *people*. The older `users` table
- * below is really one row per *village* (keyed by player tag); a person owns
- * villages through `users.owner_id`. Property names are what Better Auth
- * expects; see lib/auth.ts for the model-name mapping.
+ * Login (Better Auth + Discord). These are *people*; a person owns villages
+ * through `villages.owner_id`. Property names are what Better Auth expects;
+ * see lib/auth.ts for the model-name mapping.
  */
 export const authUsers = pgTable("auth_user", {
   id: text("id").primaryKey(),
@@ -77,45 +76,37 @@ export const authVerifications = pgTable(
   (table) => [index("auth_verification_identifier_idx").on(table.identifier)]
 );
 
-/** One row per village (named before accounts existed). */
-export const users = pgTable(
-  "users",
+/** One row per Clash village, keyed by player tag. Owned by an account via `ownerId`. */
+export const villages = pgTable(
+  "villages",
   {
-    id: text("id").primaryKey(), // User UUID or Player Tag identifier
-    playerTag: text("player_tag").unique(),
+    id: text("id").primaryKey(),
+    playerTag: text("player_tag").unique(), // "#XXXX", always via normalizeTag()
     // Account that owns this village. Null = unclaimed (anyone can sync it).
     ownerId: text("owner_id").references(() => authUsers.id, { onDelete: "set null" }),
     // Send completion alerts as a Discord DM to the owner (needs ownerId)
     dmAlerts: boolean("dm_alerts").default(false).notNull(),
     // Alert this many minutes before an upgrade finishes (0 = when done). See lib/alerts.ts
     alertLeadMinutes: integer("alert_lead_minutes").default(5).notNull(),
-    playerName: text("player_name"),
-    townHallLevel: integer("town_hall_level"),
-    clanName: text("clan_name"),
-    clanBadgeUrl: text("clan_badge_url"),
-    discordUserId: text("discord_user_id"),
     discordWebhookUrl: text("discord_webhook_url"),
     lastExportTimestamp: bigint("last_export_timestamp", { mode: "number" }),
     builderCount: integer("builder_count"), // From Builder's Hut count in the export, when present
-    verifiedAt: timestamp("verified_at"), // Set once ownership is proven via Supercell API token
+    verifiedAt: timestamp("verified_at"), // Last time ownership was proven with the in-game API token
     builderBoostEndsAt: bigint("builder_boost_ends_at", { mode: "number" }), // Unix seconds; potions stack after this
     labBoostEndsAt: bigint("lab_boost_ends_at", { mode: "number" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [
-    index("users_player_tag_idx").on(table.playerTag),
-    index("users_owner_idx").on(table.ownerId),
-  ]
+  (table) => [index("villages_owner_idx").on(table.ownerId)]
 );
 
 export const upgrades = pgTable(
   "upgrades",
   {
     id: text("id").primaryKey(), // Generated upgrade UUID
-    userId: text("user_id")
+    villageId: text("village_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => villages.id, { onDelete: "cascade" }),
     dataId: integer("data_id").notNull(),
     entityName: text("entity_name").notNull(),
     category: text("category").notNull(), // 'BUILDER' | 'LABORATORY' | 'PET_HOUSE' | 'BUILDER_BASE' | 'OTHER'
@@ -129,16 +120,16 @@ export const upgrades = pgTable(
     currentFinishTime: bigint("current_finish_time", {
       mode: "number",
     }).notNull(),
-    status: text("status").default("ACTIVE").notNull(), // 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+    // 'ACTIVE' | 'CANCELLED' (replaced by a later sync). Finished upgrades stay ACTIVE.
+    status: text("status").default("ACTIVE").notNull(),
     isGearUp: boolean("is_gear_up").default(false).notNull(),
     isExtraSlot: boolean("is_extra_slot").default(false).notNull(),
-    qstashMessageId: text("qstash_message_id"),
     notifiedAt: timestamp("notified_at"), // Set when the notify sweep claims this upgrade (before or at its finish)
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    index("upgrades_user_status_idx").on(table.userId, table.status),
+    index("upgrades_village_status_idx").on(table.villageId, table.status),
     index("upgrades_finish_time_idx").on(table.currentFinishTime),
   ]
 );
@@ -154,22 +145,22 @@ export const boosts = pgTable(
   "boosts",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
+    villageId: text("village_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => villages.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(), // 'BUILDER_POTION' | 'RESEARCH_POTION'
     windowStart: bigint("window_start", { mode: "number" }).notNull(),
     windowEnd: bigint("window_end", { mode: "number" }).notNull(),
     previousBoostEndsAt: bigint("previous_boost_ends_at", { mode: "number" }),
     changes: jsonb("changes").$type<BoostChange[]>().notNull(),
-    status: text("status").default("APPLIED").notNull(), // 'APPLIED' | 'UNDONE'
+    status: text("status").default("APPLIED").notNull(), // 'APPLIED' | 'UNDONE' | 'SUPERSEDED'
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => [index("boosts_user_status_idx").on(table.userId, table.status)]
+  (table) => [index("boosts_village_status_idx").on(table.villageId, table.status)]
 );
 
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
+export type Village = typeof villages.$inferSelect;
+export type NewVillage = typeof villages.$inferInsert;
 export type Upgrade = typeof upgrades.$inferSelect;
 export type NewUpgrade = typeof upgrades.$inferInsert;
 

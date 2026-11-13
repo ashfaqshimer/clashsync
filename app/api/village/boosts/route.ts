@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/lib/db";
-import { boosts, upgrades, users, type BoostChange, type User } from "@/lib/db/schema";
+import { boosts, upgrades, villages, type BoostChange, type Village } from "@/lib/db/schema";
 import { boostedFinishTime, nextBoostWindow, POTIONS, type PotionKind } from "@/lib/boosts";
 import { accessDeniedMessage, getVillageAccess } from "@/lib/ownership";
 import { normalizeTag } from "@/lib/tags";
@@ -16,7 +16,7 @@ function fail(error: string, status: number) {
 /** Shared preamble: parse body, find the village, check it may be changed. */
 async function loadVillage(
   request: NextRequest
-): Promise<{ user: User; body: Body } | NextResponse> {
+): Promise<{ village: Village; body: Body } | NextResponse> {
   let body: Body;
   try {
     body = await request.json();
@@ -27,12 +27,12 @@ async function loadVillage(
   const tag = normalizeTag(typeof body.tag === "string" ? body.tag : null);
   if (!tag) return fail("That doesn't look like a valid player tag.", 400);
 
-  const [user] = await db.select().from(users).where(eq(users.playerTag, tag)).limit(1);
-  if (!user) return fail(`${tag} hasn't been synced yet.`, 404);
-  const access = await getVillageAccess(user);
-  if (!access.canEdit) return fail(accessDeniedMessage(tag, access.reason), 403);
+  const [village] = await db.select().from(villages).where(eq(villages.playerTag, tag)).limit(1);
+  if (!village) return fail(`${tag} hasn't been synced yet.`, 404);
+  const access = await getVillageAccess(village);
+  if (!access.canEdit) return fail(accessDeniedMessage(tag), 403);
 
-  return { user, body };
+  return { village, body };
 }
 
 const boostEndColumn = (kind: PotionKind) =>
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   try {
     const loaded = await loadVillage(request);
     if (loaded instanceof NextResponse) return loaded;
-    const { user, body } = loaded;
+    const { village, body } = loaded;
 
     if (body.kind !== "BUILDER_POTION" && body.kind !== "RESEARCH_POTION") {
       return fail("Unknown potion.", 400);
@@ -53,14 +53,14 @@ export async function POST(request: NextRequest) {
     const endColumn = boostEndColumn(kind);
 
     const now = Math.floor(Date.now() / 1000);
-    const window = nextBoostWindow(now, user[endColumn], spec.durationSeconds);
+    const window = nextBoostWindow(now, village[endColumn], spec.durationSeconds);
 
     const targets = await db
       .select({ id: upgrades.id, currentFinishTime: upgrades.currentFinishTime })
       .from(upgrades)
       .where(
         and(
-          eq(upgrades.userId, user.id),
+          eq(upgrades.villageId, village.id),
           eq(upgrades.status, "ACTIVE"),
           eq(upgrades.category, spec.category),
           eq(upgrades.villageType, "HOME"),
@@ -92,16 +92,16 @@ export async function POST(request: NextRequest) {
           .where(and(eq(upgrades.id, c.upgradeId), eq(upgrades.currentFinishTime, c.from)))
       ),
       db
-        .update(users)
+        .update(villages)
         .set({ [endColumn]: window.end, updatedAt })
-        .where(eq(users.id, user.id)),
+        .where(eq(villages.id, village.id)),
       db.insert(boosts).values({
         id: crypto.randomUUID(),
-        userId: user.id,
+        villageId: village.id,
         kind,
         windowStart: window.start,
         windowEnd: window.end,
-        previousBoostEndsAt: user[endColumn],
+        previousBoostEndsAt: village[endColumn],
         changes,
       }),
     ];
@@ -126,12 +126,12 @@ export async function DELETE(request: NextRequest) {
   try {
     const loaded = await loadVillage(request);
     if (loaded instanceof NextResponse) return loaded;
-    const { user } = loaded;
+    const { village } = loaded;
 
     const [latest] = await db
       .select()
       .from(boosts)
-      .where(and(eq(boosts.userId, user.id), eq(boosts.status, "APPLIED")))
+      .where(and(eq(boosts.villageId, village.id), eq(boosts.status, "APPLIED")))
       .orderBy(desc(boosts.createdAt))
       .limit(1);
 
@@ -146,7 +146,7 @@ export async function DELETE(request: NextRequest) {
       .where(inArray(upgrades.id, ids));
 
     const untouched =
-      user[endColumn] === latest.windowEnd &&
+      village[endColumn] === latest.windowEnd &&
       latest.changes.every((c) => {
         const row = current.find((r) => r.id === c.upgradeId);
         return row?.status === "ACTIVE" && row.currentFinishTime === c.to;
@@ -168,9 +168,9 @@ export async function DELETE(request: NextRequest) {
           .where(eq(upgrades.id, c.upgradeId))
       ),
       db
-        .update(users)
+        .update(villages)
         .set({ [endColumn]: latest.previousBoostEndsAt, updatedAt })
-        .where(eq(users.id, user.id)),
+        .where(eq(villages.id, village.id)),
       db.update(boosts).set({ status: "UNDONE" }).where(eq(boosts.id, latest.id)),
     ];
     await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);

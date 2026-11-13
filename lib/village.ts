@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, min, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { boosts, upgrades, users } from "@/lib/db/schema";
+import { boosts, upgrades, villages } from "@/lib/db/schema";
 import type { PotionKind } from "@/lib/boosts";
 import type { VillageOwnership } from "@/lib/ownership";
 import type { UpgradeType } from "@/lib/types";
@@ -49,69 +49,69 @@ export interface LoadedVillage {
 export async function getOwnedVillages(ownerId: string) {
   return db
     .select({
-      playerTag: users.playerTag,
-      lastExportTimestamp: users.lastExportTimestamp,
+      playerTag: villages.playerTag,
+      lastExportTimestamp: villages.lastExportTimestamp,
       activeUpgrades: count(upgrades.id),
       nextFinishTime: min(upgrades.currentFinishTime),
     })
-    .from(users)
-    .leftJoin(upgrades, and(eq(upgrades.userId, users.id), eq(upgrades.status, "ACTIVE")))
-    .where(eq(users.ownerId, ownerId))
-    .groupBy(users.id)
-    .orderBy(sql`${users.lastExportTimestamp} desc nulls last`);
+    .from(villages)
+    .leftJoin(upgrades, and(eq(upgrades.villageId, villages.id), eq(upgrades.status, "ACTIVE")))
+    .where(eq(villages.ownerId, ownerId))
+    .groupBy(villages.id)
+    .orderBy(sql`${villages.lastExportTimestamp} desc nulls last`);
 }
 
 export async function getVillage(tag: string): Promise<LoadedVillage | null> {
-  const [user] = await db
+  const [row] = await db
     .select()
-    .from(users)
-    .where(eq(users.playerTag, tag))
+    .from(villages)
+    .where(eq(villages.playerTag, tag))
     .limit(1);
 
-  if (!user) return null;
+  if (!row) return null;
 
-  const [rows, [latestBoost]] = await Promise.all([
+  const [upgradeRows, [latestBoost]] = await Promise.all([
     db
       .select()
       .from(upgrades)
-      .where(and(eq(upgrades.userId, user.id), eq(upgrades.status, "ACTIVE")))
+      .where(and(eq(upgrades.villageId, row.id), eq(upgrades.status, "ACTIVE")))
       .orderBy(asc(upgrades.currentFinishTime)),
     db
       .select({ kind: boosts.kind, createdAt: boosts.createdAt })
       .from(boosts)
-      .where(and(eq(boosts.userId, user.id), eq(boosts.status, "APPLIED")))
+      .where(and(eq(boosts.villageId, row.id), eq(boosts.status, "APPLIED")))
       .orderBy(desc(boosts.createdAt))
       .limit(1),
   ]);
 
   const village: VillageSnapshot = {
-    playerTag: user.playerTag ?? tag,
-    lastExportTimestamp: user.lastExportTimestamp,
-    builderCount: user.builderCount,
-    isVerified: Boolean(user.verifiedAt),
-    isClaimed: Boolean(user.ownerId),
-    webhookAlerts: Boolean(user.discordWebhookUrl),
-    dmAlerts: user.dmAlerts,
-    alertLeadMinutes: user.alertLeadMinutes,
-    builderBoostEndsAt: user.builderBoostEndsAt,
-    labBoostEndsAt: user.labBoostEndsAt,
+    playerTag: row.playerTag ?? tag,
+    lastExportTimestamp: row.lastExportTimestamp,
+    builderCount: row.builderCount,
+    isVerified: Boolean(row.verifiedAt),
+    isClaimed: Boolean(row.ownerId),
+    webhookAlerts: Boolean(row.discordWebhookUrl),
+    dmAlerts: row.dmAlerts,
+    alertLeadMinutes: row.alertLeadMinutes,
+    builderBoostEndsAt: row.builderBoostEndsAt,
+    labBoostEndsAt: row.labBoostEndsAt,
     undoableBoost: latestBoost
       ? { kind: latestBoost.kind as PotionKind, createdAt: latestBoost.createdAt.toISOString() }
       : null,
-    upgrades: rows.map((row) => ({
-      id: row.id,
-      name: row.entityName,
-      category: row.category as UpgradeType,
-      villageType: row.villageType === "BUILDER_BASE" ? "BUILDER_BASE" : "HOME",
-      currentLevel: row.currentLevel,
-      targetLevel: row.targetLevel,
-      currentFinishTime: row.currentFinishTime,
-      isGearUp: row.isGearUp,
-      isExtraSlot: row.isExtraSlot,
+    upgrades: upgradeRows.map((u) => ({
+      id: u.id,
+      name: u.entityName,
+      category: u.category as UpgradeType,
+      villageType: u.villageType === "BUILDER_BASE" ? "BUILDER_BASE" : "HOME",
+      currentLevel: u.currentLevel,
+      targetLevel: u.targetLevel,
+      currentFinishTime: u.currentFinishTime,
+      isGearUp: u.isGearUp,
+      isExtraSlot: u.isExtraSlot,
     })),
   };
   return {
     village,
-    ownership: { playerTag: user.playerTag, ownerId: user.ownerId, verifiedAt: user.verifiedAt },
+    ownership: { playerTag: row.playerTag, ownerId: row.ownerId },
   };
 }
