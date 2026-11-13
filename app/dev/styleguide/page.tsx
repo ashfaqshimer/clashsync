@@ -18,7 +18,7 @@ export default function StyleGuide() {
       <Card className="space-y-3 p-5">
         <span className="label-caps">Headings · Lilita One, outlined</span>
         <Heading as="p" size="xl">Sync Village</Heading>
-        <Heading as="p" size="lg" gold>#R8L9R2GVG</Heading>
+        <Heading as="p" size="lg" gold>#PQL2VGU8</Heading>
         <Heading as="p" size="md">Active Upgrades (12)</Heading>
         <Heading as="p" size="sm">Discord alerts</Heading>
         <p className="max-w-prose text-sm text-muted">
@@ -76,7 +76,7 @@ export default function StyleGuide() {
             rows={3}
             aria-label="Example field"
             className="field p-3 font-mono text-xs"
-            placeholder='Paste your village export data here (e.g. {"tag": "#R8L9R2GVG", ...})'
+            placeholder='Paste your village export here (it starts with {"tag": "#…)'
           />
           <div className="flex justify-end">
             <Button>Sync Village <ArrowRight className="h-4 w-4" /></Button>
@@ -104,7 +104,7 @@ export default function StyleGuide() {
               </li>
             ))}
           </Well>
-          <input aria-label="Example input" className="field px-3 py-2 text-sm" placeholder="Enter player tag (e.g. R8L9R2GVG or #R8L9R2GVG)" />
+          <input aria-label="Example input" className="field px-3 py-2 text-sm" placeholder="Your player tag (starts with #, shown under your name in-game)" />
         </Card>
       </div>
 

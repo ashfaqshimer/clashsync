@@ -53,7 +53,7 @@ export function ExportTab({
         rows={7}
         value={jsonInput}
         onChange={(e) => onJsonInputChange(e.target.value)}
-        placeholder='Paste your village export data here (e.g. {"tag": "#R8L9R2GVG", ...})'
+        placeholder='Paste your village export here (it starts with {"tag": "#…)'
         aria-label="Village export data"
         className="field p-4 font-mono text-xs leading-relaxed"
       />

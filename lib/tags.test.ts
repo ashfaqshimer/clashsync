@@ -3,11 +3,11 @@ import { normalizeTag, tagToSlug } from "./tags";
 
 describe("normalizeTag", () => {
   it("adds the # and uppercases", () => {
-    expect(normalizeTag("r8l9r2gvg")).toBe("#R8L9R2GVG");
+    expect(normalizeTag("pql2vgu8")).toBe("#PQL2VGU8");
   });
 
   it("keeps an existing # and trims whitespace", () => {
-    expect(normalizeTag("  #R8L9R2GVG \n")).toBe("#R8L9R2GVG");
+    expect(normalizeTag("  #PQL2VGU8 \n")).toBe("#PQL2VGU8");
   });
 
   it("maps the letter O to zero", () => {
@@ -15,7 +15,7 @@ describe("normalizeTag", () => {
   });
 
   it("decodes URL-encoded tags", () => {
-    expect(normalizeTag("%23R8L9R2GVG")).toBe("#R8L9R2GVG");
+    expect(normalizeTag("%23PQL2VGU8")).toBe("#PQL2VGU8");
   });
 
   it("survives a malformed percent sequence", () => {
@@ -37,6 +37,6 @@ describe("normalizeTag", () => {
 
 describe("tagToSlug", () => {
   it("strips the leading #", () => {
-    expect(tagToSlug("#R8L9R2GVG")).toBe("R8L9R2GVG");
+    expect(tagToSlug("#PQL2VGU8")).toBe("PQL2VGU8");
   });
 });

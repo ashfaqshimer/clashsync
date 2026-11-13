@@ -30,7 +30,7 @@ export function TagLookupTab({
             type="text"
             value={playerTagInput}
             onChange={(e) => onPlayerTagInputChange(e.target.value)}
-            placeholder="Enter player tag (e.g. R8L9R2GVG or #R8L9R2GVG)"
+            placeholder="Your player tag (starts with #, shown under your name in-game)"
             aria-label="Player tag"
             className="field h-12 pl-9 pr-4 text-sm font-mono"
           />

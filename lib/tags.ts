@@ -24,7 +24,7 @@ export function normalizeTag(raw: string | null | undefined): string | null {
   return TAG_CHARS.test(body) ? `#${body}` : null;
 }
 
-/** "#R8L9R2GVG" → "R8L9R2GVG", for use in URLs (where '#' would start a fragment). */
+/** "#PQL2VGU8" → "PQL2VGU8", for use in URLs (where '#' would start a fragment). */
 export function tagToSlug(tag: string): string {
   return tag.replace(/^#/, "");
 }
