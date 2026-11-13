@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/lib/db";
 import { boosts, users, upgrades } from "@/lib/db/schema";
 import { parseVillageExport } from "@/lib/parser";
@@ -40,7 +41,6 @@ export async function POST(request: NextRequest) {
     }
     const exportTimestamp = parseResult.exportTimestamp || Math.floor(Date.now() / 1000);
 
-    // 1. Find or create user
     const existingUsers = await db
       .select()
       .from(users)
@@ -62,70 +62,70 @@ export async function POST(request: NextRequest) {
       labBoostEndsAt: null,
     };
 
-    let userId: string;
+    // All writes go in one batch so a failure can't leave the village with its
+    // old upgrades cancelled but no new ones (neon-http has no transactions).
+    const user = existingUsers[0];
+    const userId = user?.id ?? crypto.randomUUID();
+    const updatedAt = new Date();
 
-    if (existingUsers.length > 0) {
-      userId = existingUsers[0].id;
-      await db
-        .update(users)
-        .set({
-          lastExportTimestamp: exportTimestamp,
-          ...(parseResult.builderHutCount
-            ? { builderCount: parseResult.builderHutCount }
-            : {}),
-          ...boostFields,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, userId));
+    const statements: BatchItem<"pg">[] = user
+      ? [
+          db
+            .update(users)
+            .set({
+              lastExportTimestamp: exportTimestamp,
+              ...(parseResult.builderHutCount
+                ? { builderCount: parseResult.builderHutCount }
+                : {}),
+              ...boostFields,
+              updatedAt,
+            })
+            .where(eq(users.id, userId)),
+          // Potions applied before this sync can no longer be undone
+          db
+            .update(boosts)
+            .set({ status: "SUPERSEDED" })
+            .where(and(eq(boosts.userId, userId), eq(boosts.status, "APPLIED"))),
+          // Upgrades from the previous sync are replaced by this one
+          db
+            .update(upgrades)
+            .set({ status: "CANCELLED", updatedAt })
+            .where(and(eq(upgrades.userId, userId), eq(upgrades.status, "ACTIVE"))),
+        ]
+      : [
+          db.insert(users).values({
+            id: userId,
+            playerTag,
+            lastExportTimestamp: exportTimestamp,
+            builderCount: parseResult.builderHutCount ?? null,
+            ...boostFields,
+          }),
+        ];
 
-      // Potions applied before this sync can no longer be undone
-      await db
-        .update(boosts)
-        .set({ status: "SUPERSEDED" })
-        .where(and(eq(boosts.userId, userId), eq(boosts.status, "APPLIED")));
-    } else {
-      userId = crypto.randomUUID();
-      await db.insert(users).values({
-        id: userId,
-        playerTag,
-        lastExportTimestamp: exportTimestamp,
-        builderCount: parseResult.builderHutCount ?? null,
-        ...boostFields,
-      });
-    }
-
-    // 2. Mark existing ACTIVE upgrades as CANCELLED (replaced by new sync)
-    await db
-      .update(upgrades)
-      .set({
-        status: "CANCELLED",
-        updatedAt: new Date(),
-      })
-      .where(
-        and(eq(upgrades.userId, userId), eq(upgrades.status, "ACTIVE"))
-      );
-
-    // 3. Insert newly parsed active upgrades
     if (parseResult.upgrades.length > 0) {
-      const recordsToInsert = parseResult.upgrades.map((item) => ({
-        id: crypto.randomUUID(),
-        userId,
-        dataId: item.dataId,
-        entityName: item.name,
-        category: item.category,
-        villageType: item.villageType,
-        currentLevel: item.currentLevel,
-        targetLevel: item.targetLevel,
-        remainingSecondsAtExport: item.remainingSeconds,
-        originalFinishTime: item.originalFinishTime,
-        currentFinishTime: item.currentFinishTime,
-        status: "ACTIVE",
-        isGearUp: Boolean(item.isGearUp),
-        isExtraSlot: Boolean(item.isGoblinOrHelper),
-      }));
-
-      await db.insert(upgrades).values(recordsToInsert);
+      statements.push(
+        db.insert(upgrades).values(
+          parseResult.upgrades.map((item) => ({
+            id: crypto.randomUUID(),
+            userId,
+            dataId: item.dataId,
+            entityName: item.name,
+            category: item.category,
+            villageType: item.villageType,
+            currentLevel: item.currentLevel,
+            targetLevel: item.targetLevel,
+            remainingSecondsAtExport: item.remainingSeconds,
+            originalFinishTime: item.originalFinishTime,
+            currentFinishTime: item.currentFinishTime,
+            status: "ACTIVE",
+            isGearUp: Boolean(item.isGearUp),
+            isExtraSlot: Boolean(item.isGoblinOrHelper),
+          }))
+        )
+      );
     }
+
+    await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
 
     return NextResponse.json({
       success: true,
