@@ -9,11 +9,84 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 
+/*
+ * Login (Better Auth + Discord). These are *people*. The older `users` table
+ * below is really one row per *village* (keyed by player tag); a person owns
+ * villages through `users.owner_id`. Property names are what Better Auth
+ * expects; see lib/auth.ts for the model-name mapping.
+ */
+export const authUsers = pgTable("auth_user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  image: text("image"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const authSessions = pgTable(
+  "auth_session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("auth_session_user_idx").on(table.userId)]
+);
+
+export const authAccounts = pgTable(
+  "auth_account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(), // Discord user id for providerId 'discord'
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("auth_account_user_idx").on(table.userId)]
+);
+
+export const authVerifications = pgTable(
+  "auth_verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("auth_verification_identifier_idx").on(table.identifier)]
+);
+
+/** One row per village (named before accounts existed). */
 export const users = pgTable(
   "users",
   {
     id: text("id").primaryKey(), // User UUID or Player Tag identifier
     playerTag: text("player_tag").unique(),
+    // Account that owns this village. Null = unclaimed (anyone can sync it).
+    ownerId: text("owner_id").references(() => authUsers.id, { onDelete: "set null" }),
+    // Send completion alerts as a Discord DM to the owner (needs ownerId)
+    dmAlerts: boolean("dm_alerts").default(false).notNull(),
     playerName: text("player_name"),
     townHallLevel: integer("town_hall_level"),
     clanName: text("clan_name"),
@@ -28,7 +101,10 @@ export const users = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [index("users_player_tag_idx").on(table.playerTag)]
+  (table) => [
+    index("users_player_tag_idx").on(table.playerTag),
+    index("users_owner_idx").on(table.ownerId),
+  ]
 );
 
 export const upgrades = pgTable(
