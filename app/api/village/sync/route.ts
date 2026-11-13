@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { users, upgrades } from "@/lib/db/schema";
+import { boosts, users, upgrades } from "@/lib/db/schema";
 import { parseVillageExport } from "@/lib/parser";
-import { ownsTag } from "@/lib/ownership";
+import { canModifyVillage, protectedVillageMessage } from "@/lib/ownership";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 
 export async function POST(request: NextRequest) {
@@ -48,15 +48,19 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     // A verified village can only be updated from a browser that proved ownership
-    if (existingUsers[0]?.verifiedAt && !(await ownsTag(playerTag))) {
+    if (existingUsers[0] && !(await canModifyVillage(existingUsers[0]))) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `${playerTag} is protected by its owner. Verify ownership on the village page to sync it from this device.`,
-        },
+        { success: false, error: protectedVillageMessage(playerTag) },
         { status: 403 }
       );
     }
+
+    // The export is the new source of truth for builder boosts. The export
+    // format has no known research-boost field, so that resets to none.
+    const boostFields = {
+      builderBoostEndsAt: parseResult.builderBoostEndsAt ?? null,
+      labBoostEndsAt: null,
+    };
 
     let userId: string;
 
@@ -69,9 +73,16 @@ export async function POST(request: NextRequest) {
           ...(parseResult.builderHutCount
             ? { builderCount: parseResult.builderHutCount }
             : {}),
+          ...boostFields,
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId));
+
+      // Potions applied before this sync can no longer be undone
+      await db
+        .update(boosts)
+        .set({ status: "SUPERSEDED" })
+        .where(and(eq(boosts.userId, userId), eq(boosts.status, "APPLIED")));
     } else {
       userId = crypto.randomUUID();
       await db.insert(users).values({
@@ -79,6 +90,7 @@ export async function POST(request: NextRequest) {
         playerTag,
         lastExportTimestamp: exportTimestamp,
         builderCount: parseResult.builderHutCount ?? null,
+        ...boostFields,
       });
     }
 

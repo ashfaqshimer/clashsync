@@ -219,7 +219,7 @@ export function resolveEntity(
     };
   }
 
-  if (sectionHint === "spells" || sectionHint === "units") {
+  if (sectionHint === "spells" || sectionHint === "units" || sectionHint === "siege_machines") {
     return {
       name: fallbackName || `Research (#${dataId})`,
       category: "LABORATORY",

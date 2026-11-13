@@ -33,6 +33,7 @@ app/
   api/village/upgrades/route.ts GET ?tag= → ACTIVE upgrades for that tag, remaining time recomputed from now
   api/player/[tag]/route.ts     GET → official Supercell API profile (lib/clash-api.ts)
   api/village/claim/route.ts    POST {tag, token} → verify in-game API token, set users.verified_at + owner cookie
+  api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
   v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers)
 lib/
   parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side
@@ -46,6 +47,7 @@ lib/
   tags.ts          normalizeTag() (uppercase, O→0, validates charset) / tagToSlug() — use for every tag input
   ownership.ts     HMAC-signed `cs_owner` cookie (AUTH_SECRET) listing tags this browser verified
   village.ts       getVillage(tag) — server data access for the dashboard
+  boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
 ```
 
 ## Domain rules (important)
@@ -63,10 +65,9 @@ lib/
 
 Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync API, Supercell player lookup), Phase 4 (`/v/[tag]` live dashboard, stale-export warning, idle builder/lab/pet status, API-token ownership). Phase 3 (Vitest, `db.batch` atomic sync, committed migrations, splitting `app/page.tsx`) was skipped and is still open.
 
-Known gap: `boosts.builder_boost` (seconds of builder potion left at export) is ignored, so finish times are too late while a potion is active. Handle this in Phase 5.
+Phase 5 done: Builder Potion (10× for 1h, ≤9h saved) and Research Potion (24× for 1h, ≤23h saved). Only `currentFinishTime` changes. Potions stack: the next one starts at `users.*_boost_ends_at`. Each potion is logged in `boosts` with the finish times it changed. Only the latest `APPLIED` one can be undone, and only if those times are unchanged. A re-sync marks earlier boosts `SUPERSEDED`. The export's `boosts.builder_boost` is applied at parse time. The export has no known research-boost field, so a running Research Potion is lost on re-sync.
 
 Still to build:
-- **Builder Potion** ("Pop Potion"): subtract 9h (32,400s) from `currentFinishTime` on ACTIVE `BUILDER` upgrades, then reschedule their QStash jobs.
 - **Upstash QStash** scheduling: one delayed message per upgrade, with the ID stored in `upgrades.qstash_message_id`. Cancel and reschedule on re-sync or potion.
 - **`/api/webhooks/notify`**: must verify the QStash signature (`QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY`), then send a Discord DM (bot) or post to the user's webhook. Example message: "Chief, your Eagle Artillery Level 7 has finished upgrading!"
 - **Discord linking** (OAuth/bot) and real auth (`AUTH_SECRET` is reserved).

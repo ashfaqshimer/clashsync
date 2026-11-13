@@ -14,6 +14,7 @@ import type { ComponentType } from "react";
 import { formatDuration } from "@/lib/parser";
 import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { OwnershipCard } from "./ownership-card";
+import { PotionBar } from "./potion-bar";
 import { useNow } from "./use-now";
 
 /** Exports older than this probably miss upgrades started since. */
@@ -51,9 +52,11 @@ function formatClock(epochSeconds: number) {
 export function LiveDashboard({
   village,
   isOwner,
+  canEdit,
 }: {
   village: VillageSnapshot;
   isOwner: boolean;
+  canEdit: boolean;
 }) {
   const now = useNow();
 
@@ -133,6 +136,8 @@ export function LiveDashboard({
         <SlotTile group="pets" busy={petsBusy} now={now} idleText="Pet House is idle" />
         <SlotTile group="builderBase" busy={bbBusy} now={now} idleText="Nothing upgrading" />
       </div>
+
+      <PotionBar village={village} now={now} canEdit={canEdit} />
 
       {/* Upgrade lists */}
       {village.upgrades.length === 0 ? (

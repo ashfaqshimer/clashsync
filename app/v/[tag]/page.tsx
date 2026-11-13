@@ -66,7 +66,13 @@ async function Village({ slug }: { slug: string }) {
     );
   }
 
-  return <LiveDashboard village={village} isOwner={isOwner} />;
+  return (
+    <LiveDashboard
+      village={village}
+      isOwner={isOwner}
+      canEdit={isOwner || !village.isVerified}
+    />
+  );
 }
 
 function DashboardSkeleton() {

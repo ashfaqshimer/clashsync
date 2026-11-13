@@ -55,6 +55,22 @@ export async function ownsTag(tag: string): Promise<boolean> {
   return (await getOwnedTags()).includes(tag);
 }
 
+/**
+ * Unverified villages are open to anyone; verified ones only to browsers
+ * holding the owner cookie. Applies to every write (sync, potions, …).
+ */
+export async function canModifyVillage(user: {
+  playerTag: string | null;
+  verifiedAt: Date | null;
+}): Promise<boolean> {
+  if (!user.verifiedAt) return true;
+  return user.playerTag !== null && (await ownsTag(user.playerTag));
+}
+
+export function protectedVillageMessage(tag: string): string {
+  return `${tag} is protected by its owner. Verify ownership on the village page to make changes from this device.`;
+}
+
 /** Adds a tag to the ownership cookie. Only callable from a Route Handler / Server Function. */
 export async function rememberOwnedTag(tag: string): Promise<void> {
   const store = await cookies();

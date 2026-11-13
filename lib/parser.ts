@@ -1,3 +1,4 @@
+import { boostedFinishTime, POTIONS } from "./boosts";
 import { resolveEntity } from "./clash-data";
 import { ActiveUpgrade, ParseResult, RawExportVillage, RawVillageItem } from "./types";
 
@@ -132,6 +133,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
   processSection(data.heroes, "heroes");
   processSection(data.units, "units");
   processSection(data.spells, "spells");
+  processSection(data.siege_machines, "siege_machines");
   processSection(data.pets, "pets");
   processSection(data.traps, "traps");
 
@@ -144,6 +146,29 @@ export function parseVillageExport(rawJson: string): ParseResult {
   // Fallback: check if the top-level is directly an array
   if (Array.isArray(data)) {
     processSection(data as RawVillageItem[], "items");
+  }
+
+  // A builder potion running at export time: `boosts.builder_boost` is the
+  // seconds of boost left. Timers are normal-speed work, so pull finishes in.
+  const builderBoostSeconds = Number(data.boosts?.builder_boost ?? 0);
+  const builderBoostEndsAt =
+    builderBoostSeconds > 0 ? exportTimestamp + builderBoostSeconds : undefined;
+  if (builderBoostEndsAt) {
+    const { multiplier } = POTIONS.BUILDER_POTION;
+    for (const u of upgrades) {
+      if (u.category !== "BUILDER" || u.villageType !== "HOME") continue;
+      u.currentFinishTime = boostedFinishTime(
+        u.originalFinishTime,
+        exportTimestamp,
+        multiplier,
+        builderBoostSeconds
+      );
+      u.formattedRemaining = formatDuration(u.currentFinishTime - exportTimestamp);
+      u.formattedFinishTime = new Date(u.currentFinishTime * 1000).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    }
   }
 
   // Builder's Hut carries a `cnt` when the export lists it
@@ -180,6 +205,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
     petUpgradesCount,
     builderBaseUpgradesCount,
     builderHutCount,
+    builderBoostEndsAt,
     upgrades,
   };
 }

@@ -25,6 +25,7 @@ export interface RawExportVillage {
   heroes?: RawVillageItem[];
   units?: RawVillageItem[];
   spells?: RawVillageItem[];
+  siege_machines?: RawVillageItem[];
   pets?: RawVillageItem[];
   traps?: RawVillageItem[];
   buildings2?: RawVillageItem[];
@@ -64,6 +65,7 @@ export interface ParseResult {
   petUpgradesCount: number;
   builderBaseUpgradesCount: number;
   builderHutCount?: number; // Home village Builder's Huts, if the export lists them
+  builderBoostEndsAt?: number; // Unix seconds, when a builder potion was running at export
   upgrades: ActiveUpgrade[];
   error?: string;
 }
