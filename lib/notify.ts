@@ -1,7 +1,8 @@
-import { and, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { upgrades, users } from "@/lib/db/schema";
-import { sendDiscordMessage } from "@/lib/discord";
+import { authAccounts, upgrades, users } from "@/lib/db/schema";
+import { appUrl } from "@/lib/app-url";
+import { sendDiscordDm, sendDiscordMessage } from "@/lib/discord";
 import { tagToSlug } from "@/lib/tags";
 
 /** Finished longer ago than this (cron gap, old export re-synced) → don't announce. */
@@ -16,18 +17,7 @@ interface Finished {
   currentFinishTime: number;
 }
 
-/**
- * Public base URL for links in Discord messages. NEXT_PUBLIC_APP_URL wins, except a
- * localhost value on Vercel (a copied .env.local) — then use Vercel's production domain.
- */
-export function appUrl(): string {
-  const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  const isLocal = !explicit || /localhost|127\.0\.0\.1/.test(explicit);
-  if (explicit && !(isLocal && process.env.VERCEL)) return explicit.replace(/\/+$/, "");
-  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (prod) return `https://${prod}`;
-  return "http://localhost:3000";
-}
+export { appUrl };
 
 export function completionMessage(tag: string, items: Pick<Finished, "entityName" | "targetLevel">[]): string {
   const link = `${appUrl()}/v/${tagToSlug(tag)}`;
@@ -44,7 +34,7 @@ export interface SweepSummary {
   claimed: number;
   sent: number;
   skippedStale: number;
-  skippedNoWebhook: number;
+  skippedNoDestination: number;
   failed: number;
   retrying: number;
 }
@@ -77,7 +67,7 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
     claimed: claimed.length,
     sent: 0,
     skippedStale: 0,
-    skippedNoWebhook: 0,
+    skippedNoDestination: 0,
     failed: 0,
     retrying: 0,
   };
@@ -90,30 +80,47 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
   const byUser = new Map<string, Finished[]>();
   for (const u of fresh) byUser.set(u.userId, [...(byUser.get(u.userId) ?? []), u]);
 
+  // Destinations: the channel webhook and/or a DM to the owner's Discord account
   const recipients = await db
-    .select({ id: users.id, playerTag: users.playerTag, webhook: users.discordWebhookUrl })
+    .select({
+      id: users.id,
+      playerTag: users.playerTag,
+      webhook: users.discordWebhookUrl,
+      dmAlerts: users.dmAlerts,
+      discordId: authAccounts.accountId,
+    })
     .from(users)
-    .where(and(inArray(users.id, [...byUser.keys()]), isNotNull(users.discordWebhookUrl)));
+    .leftJoin(
+      authAccounts,
+      and(eq(authAccounts.userId, users.ownerId), eq(authAccounts.providerId, "discord"))
+    )
+    .where(inArray(users.id, [...byUser.keys()]));
   const recipientById = new Map(recipients.map((r) => [r.id, r]));
 
   await Promise.all(
     [...byUser.entries()].map(async ([userId, items]) => {
       const recipient = recipientById.get(userId);
-      if (!recipient?.webhook || !recipient.playerTag) {
-        summary.skippedNoWebhook += items.length;
+      const dmTo = recipient?.dmAlerts ? recipient.discordId : null;
+      if (!recipient?.playerTag || (!recipient.webhook && !dmTo)) {
+        summary.skippedNoDestination += items.length;
         return;
       }
 
       const sorted = [...items].sort((a, b) => a.currentFinishTime - b.currentFinishTime);
-      const result = await sendDiscordMessage(
-        recipient.webhook,
-        completionMessage(recipient.playerTag, sorted)
-      );
+      const content = completionMessage(recipient.playerTag, sorted);
+      const results = await Promise.all([
+        ...(recipient.webhook ? [sendDiscordMessage(recipient.webhook, content)] : []),
+        ...(dmTo ? [sendDiscordDm(dmTo, content)] : []),
+      ]);
 
-      if (result.ok) {
+      for (const r of results) {
+        if (!r.ok) console.warn(`[notify] ${recipient.playerTag}: ${r.error}`);
+      }
+      if (results.some((r) => r.ok)) {
         summary.sent += items.length;
-      } else if (result.retry) {
-        // Release the claim so the next run tries again (until it goes stale)
+      } else if (results.some((r) => !r.ok && r.retry)) {
+        // Nothing got through: release the claim so the next run tries again
+        // (until it goes stale). A partial success isn't retried, to avoid duplicates.
         summary.retrying += items.length;
         await db
           .update(upgrades)
@@ -121,7 +128,6 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
           .where(inArray(upgrades.id, items.map((i) => i.id)));
       } else {
         summary.failed += items.length;
-        console.warn(`[notify] ${recipient.playerTag}: ${result.error}`);
       }
     })
   );
