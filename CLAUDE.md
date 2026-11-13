@@ -13,8 +13,8 @@ Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn
 - `pnpm dev` — dev server (Turbopack) on http://localhost:3000
 - `pnpm build` / `pnpm start`
 - `pnpm lint` — ESLint 9 flat config (`eslint.config.mjs`)
-- `pnpm test` / `pnpm test:watch` — Vitest (`vitest.config.mts`, `@/` alias set up). Tests sit next to the code as `*.test.ts`; they cover the pure modules (`parser`, `boosts`, `tags`). No DB or route tests yet.
-- Schema changes: edit `lib/db/schema.ts` → `pnpm db:generate --name <change>` → review the SQL in `drizzle/` → `pnpm db:migrate`. Commit the `drizzle/` folder. Don't use `drizzle-kit push` any more (it bypasses the history).
+- `pnpm test` / `pnpm test:watch` — Vitest (`vitest.config.mts`, `@/` alias set up). Unit tests sit next to the code as `*.test.ts` (pure modules). Integration tests in `tests/` run route handlers and the alert sweep against in-memory Postgres (PGlite, `tests/test-db.ts`) built from the committed migrations, with `@/lib/db`, `@/lib/auth` and Discord `fetch` mocked.
+- Schema changes: edit `lib/db/schema.ts` → `pnpm db:generate --name <change>` → review the SQL in `drizzle/` → `pnpm db:migrate`. Commit the `drizzle/` folder. Don't use `drizzle-kit push` any more (it bypasses the history). Renames make drizzle-kit ask questions, which needs a real terminal (run it yourself, or hand-write a `--custom` migration and rebuild its snapshot).
 - `pnpm db:baseline` — one-off for a database created with `push`: records `0000_baseline` as applied so `db:migrate` doesn't re-create existing tables. Idempotent.
 
 ## Stack (as built)
@@ -36,7 +36,7 @@ app/
   api/village/claim/route.ts    POST {tag, token} → API-token takeover: moves the village to the logged-in account (login required)
   api/village/notifications/route.ts  PUT webhook · PATCH {dm} DM alerts · POST test · DELETE webhook (owner only)
   api/auth/[...all]/route.ts    Better Auth handler (Discord OAuth, sessions)
-  api/account/after-login/route.ts  Post-login step: link legacy cookie villages, bot adds user to the Discord server
+  api/account/after-login/route.ts  Post-login step: the bot adds the user to the ClashSync Discord server (for DMs)
   villages/                     "My villages" list for the logged-in account
   _components/account-menu.tsx  Login button / avatar + log out (client, uses lib/auth-client)
   api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
@@ -48,13 +48,13 @@ lib/
   types.ts         Raw export shapes (RawExportVillage / RawVillageItem) + ActiveUpgrade / ParseResult
   clash-api.ts     fetchPlayerProfile / verifyPlayerToken. Always via RoyaleAPI proxy (cocproxy.royaleapi.dev), so
                    CLASH_API_KEY whitelists the proxy IP and works locally + on Vercel. CLASH_API_MOCK=1 fakes both in dev (never in prod)
-  db/schema.ts     Drizzle tables: users, upgrades
+  db/schema.ts     Drizzle tables: auth_* (Better Auth), villages, upgrades, boosts
   db/index.ts      db client; forces IPv4-first DNS; falls back to loading .env.local itself
   sample-data.ts   SAMPLE_VILLAGE_JSON for demos
   tags.ts          normalizeTag() (uppercase, O→0, validates charset) / tagToSlug() — use for every tag input
   auth.ts          Better Auth server config (Discord, auth_* tables, cookie cache) + getSessionUser()
   auth-client.ts   Browser auth client + signInWithDiscord(next)
-  ownership.ts     getVillageAccess(): who may edit a village; reads the legacy `cs_owner` cookie for migration only
+  ownership.ts     getVillageAccess(): who may edit a village (owner account, or anyone if unclaimed)
   app-url.ts       appUrl(): public base URL (links in messages, auth baseURL)
   village.ts       getVillage(tag) — server data access for the dashboard
   boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
@@ -66,31 +66,28 @@ lib/
 - **Time math:** `finish = exportTimestamp + timer`, all in **UTC Unix seconds** (not ms). If `timestamp` is missing or bogus, the parser falls back to "now". Store epochs; format only for display.
 - **Categories:** `BUILDER | LABORATORY | PET_HOUSE | BUILDER_BASE | OTHER`. Heroes count as `BUILDER` (home) and `BUILDER_BASE` (BB). `units` and `spells` count as `LABORATORY`, and `pets` as `PET_HOUSE`. Unknown IDs go through `resolveEntity` heuristics, so add new IDs to `CLASH_ENTITIES` when they show up.
 - **`originalFinishTime` vs `currentFinishTime`:** the two are equal at sync. Only `currentFinishTime` should change (for example, from a potion). `originalFinishTime` keeps the time from the export.
-- **Sync semantics:** a sync never deletes rows. Previous `ACTIVE` upgrades for the user are set to `CANCELLED`, and fresh rows are inserted. Statuses are `ACTIVE | COMPLETED | CANCELLED`, stored as plain `text` (not a pg enum).
-- **Identity:** users are keyed by **player tag** (stored as `#XXXX`; URLs use the bare slug). Always pass tags through `normalizeTag`. A sync without a valid tag is rejected.
-- **Accounts vs villages:** people log in with Discord (Better Auth, tables `auth_user/auth_session/auth_account/auth_verification`, mapped via `modelName` in `lib/auth.ts`). The old `users` table is one row per **village**; `users.owner_id` links it to an `auth_user`. Discord user id = `auth_account.account_id` where `provider_id = 'discord'`.
-- **Ownership (`getVillageAccess`):** claimed village → only the owner account may sync/potion/alerts. Unclaimed → anyone; a **logged-in sync claims it** (no token). Unclaimed but verified the old way → only browsers with the legacy `cs_owner` cookie; logging in links it. The **API token always wins**: `/api/village/claim` moves the village to the caller and clears the previous owner's alerts. Use `accessDeniedMessage()` for 403s.
-- **Dashboard timing:** the server never computes "now". `useNow()` returns `null` during SSR/hydration so markup matches, then ticks every second on the client. Builder totals come from the Builder's Hut `cnt` (`users.builder_count`), which isn't always in the export, so the UI falls back to "N busy / next free in…". Goblin and extra slots don't count as busy.
+- **Sync semantics:** a sync never deletes rows. Previous `ACTIVE` upgrades for the village are set to `CANCELLED`, and fresh rows are inserted. Statuses are `ACTIVE | CANCELLED` (finished upgrades stay `ACTIVE`), stored as plain `text` (not a pg enum).
+- **Identity:** villages are keyed by **player tag** (stored as `#XXXX`; URLs use the bare slug). Always pass tags through `normalizeTag`. A sync without a valid tag is rejected.
+- **Accounts vs villages:** people log in with Discord (Better Auth, tables `auth_user/auth_session/auth_account/auth_verification`, mapped via `modelName` in `lib/auth.ts`). `villages` has one row per Clash village; `villages.owner_id` links it to an `auth_user`. Upgrades and boosts point at it via `village_id`. Discord user id = `auth_account.account_id` where `provider_id = 'discord'`.
+- **Ownership (`getVillageAccess`):** claimed village → only the owner account may sync/potion/alerts. Unclaimed → anyone; a **logged-in sync claims it** (no token). The **API token always wins**: `/api/village/claim` moves the village to the caller and clears the previous owner's alerts. Use `accessDeniedMessage()` for 403s.
+- **Dashboard timing:** the server never computes "now". `useNow()` returns `null` during SSR/hydration so markup matches, then ticks every second on the client. Builder totals come from the Builder's Hut `cnt` (`villages.builder_count`), which isn't always in the export, so the UI falls back to "N busy / next free in…". Goblin and extra slots don't count as busy.
 
 ## Roadmap / not built yet
 
 Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync API, Supercell player lookup), Phase 4 (`/v/[tag]` live dashboard, stale-export warning, idle builder/lab/pet status, API-token ownership). Phase 3 done (done after Phase 6): Vitest for the pure modules, atomic `db.batch` sync, a committed `drizzle/` migration history starting at `0000_baseline`, and `app/page.tsx` split into `app/_home/`.
 
-Phase 5 done: Builder Potion (10× for 1h, ≤9h saved) and Research Potion (24× for 1h, ≤23h saved). Only `currentFinishTime` changes. Potions stack: the next one starts at `users.*_boost_ends_at`. Each potion is logged in `boosts` with the finish times it changed. Only the latest `APPLIED` one can be undone, and only if those times are unchanged. A re-sync marks earlier boosts `SUPERSEDED`. The export's `boosts.builder_boost` is applied at parse time. The export has no known research-boost field, so a running Research Potion is lost on re-sync.
+Phase 5 done: Builder Potion (10× for 1h, ≤9h saved) and Research Potion (24× for 1h, ≤23h saved). Only `currentFinishTime` changes. Potions stack: the next one starts at `villages.*_boost_ends_at`. Each potion is logged in `boosts` with the finish times it changed. Only the latest `APPLIED` one can be undone, and only if those times are unchanged. A re-sync marks earlier boosts `SUPERSEDED`. The export's `boosts.builder_boost` is applied at parse time. The export has no research-boost field, so a re-sync keeps an in-app Research Potion that is still running at export time (`villages.lab_boost_ends_at`) and re-applies its remainder to lab timers (`finishWithRunningBoost`).
 
 Phase 6 done: Discord alerts.
 - Verified owners save a Discord **webhook URL** on the dashboard (`/api/village/notifications`: PUT save, which sends a confirmation first, POST test, DELETE off). The URL is validated as a Discord webhook (SSRF guard) and never sent to the client (`webhookAlerts` only).
-- **Early alerts:** each village picks a lead time (`users.alert_lead_minutes`, default 5; 0 = when done). The sweep claims upgrades finishing by `now + lead + 2 min`, so alerts land `lead`–`lead+2` min before the finish (`lib/alerts.ts`, `SWEEP_INTERVAL_SECONDS` must match the cron). Messages use Discord `<t:…:R>` timestamps (live countdown, reader timezone). A re-sync carries `notified_at` over to matching new rows (`carryOverNotified`) so players aren't alerted twice.
-- **One QStash schedule** (`pnpm qstash:schedule <public-url>`, id `clashsync-notify`, every 2 min) POSTs to `/api/cron/notify`. That endpoint verifies `upstash-signature`; unsigned requests are allowed only in dev. Per-upgrade QStash messages were deliberately not used, so `upgrades.qstash_message_id` is unused.
+- **Early alerts:** each village picks a lead time (`villages.alert_lead_minutes`, default 5; 0 = when done). The sweep claims upgrades finishing by `now + lead + 2 min`, so alerts land `lead`–`lead+2` min before the finish (`lib/alerts.ts`, `SWEEP_INTERVAL_SECONDS` must match the cron). Messages use Discord `<t:…:R>` timestamps (live countdown, reader timezone). A re-sync carries `notified_at` over to matching new rows (`carryOverNotified`) so players aren't alerted twice.
+- **One QStash schedule** (`pnpm qstash:schedule <public-url>`, id `clashsync-notify`, every 2 min) POSTs to `/api/cron/notify`. That endpoint verifies `upstash-signature`; unsigned requests are allowed only in dev. Per-upgrade QStash messages were deliberately not used.
 - The sweep (`lib/notify.ts`) claims due rows with one `UPDATE … WHERE notified_at IS NULL RETURNING`, which prevents double sends, then sends one message per village. Upgrades finished more than 30 min ago are skipped. 429/5xx failures release the claim for retry. Undoing a potion re-arms the alert (clears `notified_at`).
-- Status stays `ACTIVE` after notifying (the dashboard shows "Done"). `COMPLETED` is still unused.
+- Status stays `ACTIVE` after notifying (the dashboard shows "Done").
 
-Phase 7 done: Discord login (self-hosted Better Auth), account-owned villages (claim on sync, API-token takeover), "My villages", and bot DM alerts. Login requests `guilds.join`; after login the bot adds the user to the ClashSync server (`DISCORD_GUILD_ID`) because bots can only DM people they share a server with. `users.dm_alerts` turns DMs on (PATCH sends a confirmation DM first). The sweep sends to the webhook and/or DM; it only retries when nothing got through. DM UI is hidden unless `DISCORD_BOT_TOKEN` and `DISCORD_GUILD_ID` are set.
+Phase 7 done: Discord login (self-hosted Better Auth), account-owned villages (claim on sync, API-token takeover), "My villages", and bot DM alerts. Login requests `guilds.join`; after login the bot adds the user to the ClashSync server (`DISCORD_GUILD_ID`) because bots can only DM people they share a server with. `villages.dm_alerts` turns DMs on (PATCH sends a confirmation DM first). The sweep sends to the webhook and/or DM; it only retries when nothing got through. DM UI is hidden unless `DISCORD_BOT_TOKEN` and `DISCORD_GUILD_ID` are set.
 
-Still to build:
-- Remove the legacy `cs_owner` cookie path once old owners have logged in.
-- Rename the `users` table to `villages` (it predates accounts).
-- Tests for the API routes and `lib/notify.ts` (they need a DB or mocks).
+Cleanup done: legacy `cs_owner` cookie removed, `users` renamed to `villages` (`drizzle/0003_villages.sql`, hand-written: drizzle-kit can't answer rename prompts without a TTY, so the snapshot was rebuilt with `drizzle-kit/api`), unused columns dropped, integration tests added.
 
 ## Conventions
 
