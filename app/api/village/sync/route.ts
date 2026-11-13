@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/lib/db";
 import { boosts, users, upgrades } from "@/lib/db/schema";
 import { parseVillageExport } from "@/lib/parser";
-import { canModifyVillage, protectedVillageMessage } from "@/lib/ownership";
+import { getSessionUser } from "@/lib/auth";
+import { accessDeniedMessage, getVillageAccess } from "@/lib/ownership";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 
 export async function POST(request: NextRequest) {
@@ -47,13 +48,18 @@ export async function POST(request: NextRequest) {
       .where(eq(users.playerTag, playerTag))
       .limit(1);
 
-    // A verified village can only be updated from a browser that proved ownership
-    if (existingUsers[0] && !(await canModifyVillage(existingUsers[0]))) {
+    // Claimed villages only sync for their account; a logged-in sync of an
+    // unclaimed village claims it (see lib/ownership.ts)
+    const access = existingUsers[0]
+      ? await getVillageAccess(existingUsers[0])
+      : { viewer: await getSessionUser(), canEdit: true, shouldClaim: true, reason: undefined };
+    if (!access.canEdit) {
       return NextResponse.json(
-        { success: false, error: protectedVillageMessage(playerTag) },
+        { success: false, error: accessDeniedMessage(playerTag, access.reason) },
         { status: 403 }
       );
     }
+    const claimFor = access.shouldClaim ? (access.viewer?.id ?? null) : null;
 
     // The export is the new source of truth for builder boosts. The export
     // format has no known research-boost field, so that resets to none.
@@ -91,11 +97,20 @@ export async function POST(request: NextRequest) {
             .update(upgrades)
             .set({ status: "CANCELLED", updatedAt })
             .where(and(eq(upgrades.userId, userId), eq(upgrades.status, "ACTIVE"))),
+          ...(claimFor
+            ? [
+                db
+                  .update(users)
+                  .set({ ownerId: claimFor })
+                  .where(and(eq(users.id, userId), isNull(users.ownerId))),
+              ]
+            : []),
         ]
       : [
           db.insert(users).values({
             id: userId,
             playerTag,
+            ownerId: claimFor,
             lastExportTimestamp: exportTimestamp,
             builderCount: parseResult.builderHutCount ?? null,
             ...boostFields,
@@ -132,6 +147,8 @@ export async function POST(request: NextRequest) {
       playerTag,
       dashboardPath: `/v/${tagToSlug(playerTag)}`,
       userId,
+      // True when this sync linked the village to the logged-in account
+      claimed: claimFor !== null,
       exportTimestamp,
       totalActiveUpgrades: parseResult.totalActiveUpgrades,
       builderUpgradesCount: parseResult.builderUpgradesCount,

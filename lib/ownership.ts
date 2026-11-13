@@ -1,16 +1,81 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { getSessionUser, type SessionUser } from "@/lib/auth";
 
 /**
- * Village ownership is proven once with Supercell's in-game API token
- * (POST /players/{tag}/verifytoken). After that, the browser holds an
- * HMAC-signed cookie listing the tags it has verified.
+ * Who may change a village (sync, potions, alerts):
  *
- * This is a stopgap until real accounts (Discord login) land in Phase 7.
+ * - Claimed (`ownerId` set): only that Discord account, on any device.
+ * - Unclaimed but verified the old way (API token before accounts existed):
+ *   only browsers holding the legacy `cs_owner` cookie. Logging in from such a
+ *   browser claims the village (app/api/account/after-login).
+ * - Unclaimed: anyone. A logged-in sync claims it for that account.
+ *
+ * The in-game API token always wins: it moves a village to the account that
+ * proves it (app/api/village/claim).
  */
+
+export interface VillageOwnership {
+  playerTag: string | null;
+  ownerId: string | null;
+  verifiedAt: Date | null;
+}
+
+export type AccessReason = "owned_by_other" | "legacy_protected";
+
+export interface VillageAccess {
+  /** Logged-in person, if any. */
+  viewer: SessionUser | null;
+  /** May sync, apply potions, … */
+  canEdit: boolean;
+  /** Owns it: account owner, or legacy cookie owner of an unclaimed verified village. */
+  isOwner: boolean;
+  /** A write by this viewer should set `ownerId` to them. */
+  shouldClaim: boolean;
+  reason?: AccessReason;
+}
+
+export async function getVillageAccess(village: VillageOwnership): Promise<VillageAccess> {
+  const viewer = await getSessionUser();
+
+  if (village.ownerId) {
+    const isOwner = viewer?.id === village.ownerId;
+    return {
+      viewer,
+      canEdit: isOwner,
+      isOwner,
+      shouldClaim: false,
+      reason: isOwner ? undefined : "owned_by_other",
+    };
+  }
+
+  if (village.verifiedAt) {
+    const legacyOwner =
+      village.playerTag !== null && (await getLegacyOwnedTags()).includes(village.playerTag);
+    return {
+      viewer,
+      canEdit: legacyOwner,
+      isOwner: legacyOwner,
+      shouldClaim: legacyOwner && viewer !== null,
+      reason: legacyOwner ? undefined : "legacy_protected",
+    };
+  }
+
+  return { viewer, canEdit: true, isOwner: false, shouldClaim: viewer !== null };
+}
+
+export function accessDeniedMessage(tag: string, reason: AccessReason | undefined): string {
+  return reason === "owned_by_other"
+    ? `${tag} is linked to another ClashSync account. If it's your village, open its page and take it over with your in-game API token.`
+    : `${tag} is protected by its owner. Log in with Discord on the device you verified it on, or take it over with your in-game API token on its page.`;
+}
+
+/* ---------------------------------------------------------------------------
+ * Legacy `cs_owner` cookie (pre-accounts). Read-only now: it's only used to
+ * recognise old owners and to migrate their villages on first login.
+ * ------------------------------------------------------------------------- */
+
 export const OWNER_COOKIE = "cs_owner";
-const MAX_TAGS = 10;
-const MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 function secret(): string {
   const s = process.env.AUTH_SECRET;
@@ -22,11 +87,6 @@ function secret(): string {
 
 function sign(payload: string): string {
   return createHmac("sha256", secret()).update(payload).digest("base64url");
-}
-
-function encode(tags: string[]): string {
-  const payload = Buffer.from(JSON.stringify(tags)).toString("base64url");
-  return `${payload}.${sign(payload)}`;
 }
 
 function decode(value: string | undefined): string[] {
@@ -46,41 +106,12 @@ function decode(value: string | undefined): string[] {
   }
 }
 
-/** Tags this browser has proven it owns. Reads request cookies (runtime data). */
-export async function getOwnedTags(): Promise<string[]> {
+/** Tags this browser proved with an API token before accounts existed. */
+export async function getLegacyOwnedTags(): Promise<string[]> {
   return decode((await cookies()).get(OWNER_COOKIE)?.value);
 }
 
-export async function ownsTag(tag: string): Promise<boolean> {
-  return (await getOwnedTags()).includes(tag);
-}
-
-/**
- * Unverified villages are open to anyone; verified ones only to browsers
- * holding the owner cookie. Applies to every write (sync, potions, …).
- */
-export async function canModifyVillage(user: {
-  playerTag: string | null;
-  verifiedAt: Date | null;
-}): Promise<boolean> {
-  if (!user.verifiedAt) return true;
-  return user.playerTag !== null && (await ownsTag(user.playerTag));
-}
-
-export function protectedVillageMessage(tag: string): string {
-  return `${tag} is protected by its owner. Verify ownership on the village page to make changes from this device.`;
-}
-
-/** Adds a tag to the ownership cookie. Only callable from a Route Handler / Server Function. */
-export async function rememberOwnedTag(tag: string): Promise<void> {
-  const store = await cookies();
-  const current = decode(store.get(OWNER_COOKIE)?.value).filter((t) => t !== tag);
-  const next = [tag, ...current].slice(0, MAX_TAGS);
-  store.set(OWNER_COOKIE, encode(next), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: MAX_AGE_SECONDS,
-  });
+/** Removes the legacy cookie. Only callable from a Route Handler / Server Function. */
+export async function clearLegacyOwnerCookie(): Promise<void> {
+  (await cookies()).delete(OWNER_COOKIE);
 }

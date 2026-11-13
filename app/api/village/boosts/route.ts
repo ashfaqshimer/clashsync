@@ -4,7 +4,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/lib/db";
 import { boosts, upgrades, users, type BoostChange, type User } from "@/lib/db/schema";
 import { boostedFinishTime, nextBoostWindow, POTIONS, type PotionKind } from "@/lib/boosts";
-import { canModifyVillage, protectedVillageMessage } from "@/lib/ownership";
+import { accessDeniedMessage, getVillageAccess } from "@/lib/ownership";
 import { normalizeTag } from "@/lib/tags";
 
 type Body = { tag?: unknown; kind?: unknown };
@@ -29,7 +29,8 @@ async function loadVillage(
 
   const [user] = await db.select().from(users).where(eq(users.playerTag, tag)).limit(1);
   if (!user) return fail(`${tag} hasn't been synced yet.`, 404);
-  if (!(await canModifyVillage(user))) return fail(protectedVillageMessage(tag), 403);
+  const access = await getVillageAccess(user);
+  if (!access.canEdit) return fail(accessDeniedMessage(tag, access.reason), 403);
 
   return { user, body };
 }
