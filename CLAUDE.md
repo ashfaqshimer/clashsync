@@ -11,7 +11,8 @@ Product scope and the original plan: `docs/PROJECT_OVERVIEW.md`. `CONTEXT.md` is
 Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn.
 
 - `pnpm dev` — dev server (Turbopack) on http://localhost:3000
-- `pnpm build` / `pnpm start`
+- `pnpm build` / `pnpm start`. **Stop `pnpm dev` before building**: both use `.next/`, and a build during dev leaves the dev server serving a stale `globals.css` (UI suddenly looks unstyled; fix = stop dev, delete `.next`, restart).
+- `pnpm screenshots` — with `pnpm dev` running: headless Chrome captures every UI state at 1280px and 375px into `screenshots/` (gitignored), and fails if a page scrolls sideways or throws. Server calls are stubbed in-page (no DB writes). Dashboard / My villages / design-system states come from dev-only fixture pages under `app/dev/` (`/dev/dashboard`, `/dev/villages`, `/dev/styleguide`; 404 in production). Set `CHROME_PATH` if Chrome isn't found. Add a state to `scripts/screenshots.mjs` when you add UI.
 - `pnpm lint` — ESLint 9 flat config (`eslint.config.mjs`)
 - `pnpm test` / `pnpm test:watch` — Vitest (`vitest.config.mts`, `@/` alias set up). Unit tests sit next to the code as `*.test.ts` (pure modules). Integration tests in `tests/` run route handlers and the alert sweep against in-memory Postgres (PGlite, `tests/test-db.ts`) built from the committed migrations, with `@/lib/db`, `@/lib/auth` and Discord `fetch` mocked.
 - Schema changes: edit `lib/db/schema.ts` → `pnpm db:generate --name <change>` → review the SQL in `drizzle/` → `pnpm db:migrate`. Commit the `drizzle/` folder. Don't use `drizzle-kit push` any more (it bypasses the history). Renames make drizzle-kit ask questions, which needs a real terminal (run it yourself, or hand-write a `--custom` migration and rebuild its snapshot).
@@ -42,6 +43,8 @@ app/
   _components/account-menu.tsx  Login button / avatar + log out (client, uses lib/auth-client)
   _components/subpage-header.tsx  Header for inner pages (back to home, actions, account menu)
   _components/ui/               Shared design-system components (see Stack → Design system)
+  dev/                          Dev-only review pages with fixture data (style guide, dashboard + villages states); 404 in production
+  icon.svg, favicon.ico, apple-icon.png, opengraph-image.png, manifest.ts   App icons, share image, web manifest (public/icon-192/512.png)
   api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
   api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
   v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers)
