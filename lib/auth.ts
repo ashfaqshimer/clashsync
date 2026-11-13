@@ -30,6 +30,9 @@ export const auth = betterAuth({
   user: { modelName: "authUser" },
   session: {
     modelName: "authSession",
+    // Rolling 90 days: each visit (at most once a day) pushes the expiry out again
+    expiresIn: 60 * 60 * 24 * 90,
+    updateAge: 60 * 60 * 24,
     // Skip the DB lookup on most requests
     cookieCache: { enabled: true, maxAge: 5 * 60 },
   },

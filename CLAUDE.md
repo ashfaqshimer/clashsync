@@ -55,7 +55,7 @@ lib/
   db/index.ts      db client; forces IPv4-first DNS; falls back to loading .env.local itself
   sample-data.ts   SAMPLE_VILLAGE_JSON for demos
   tags.ts          normalizeTag() (uppercase, O→0, validates charset) / tagToSlug() — use for every tag input
-  auth.ts          Better Auth server config (Discord, auth_* tables, cookie cache) + getSessionUser()
+  auth.ts          Better Auth server config (Discord, auth_* tables, rolling 90-day sessions, cookie cache) + getSessionUser()
   auth-client.ts   Browser auth client + signInWithDiscord(next)
   ownership.ts     getVillageAccess(): who may edit a village (owner account, or anyone if unclaimed)
   app-url.ts       appUrl(): public base URL (links in messages, auth baseURL)
