@@ -14,7 +14,7 @@ import { appUrl } from "@/lib/app-url";
  */
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || appUrl(),
-  // Separate from AUTH_SECRET, which still signs the legacy cs_owner cookies
+  // BETTER_AUTH_SECRET preferred; AUTH_SECRET kept as a fallback
   secret: process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET,
   // neon-http has no interactive transactions; the adapter runs statements in sequence
   database: drizzleAdapter(db, {

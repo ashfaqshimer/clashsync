@@ -76,14 +76,10 @@ async function Village({ slug }: { slug: string }) {
   const { village, ownership } = loaded;
   const access = await getVillageAccess(ownership);
   const state: OwnershipState = access.isOwner
-    ? ownership.ownerId
-      ? "account_owner"
-      : "legacy_owner"
+    ? "account_owner"
     : ownership.ownerId
       ? "claimed_other"
-      : ownership.verifiedAt
-        ? "legacy_protected"
-        : "unclaimed";
+      : "unclaimed";
 
   return (
     <LiveDashboard

@@ -164,7 +164,6 @@ export function LiveDashboard({
           dmOn={village.dmAlerts}
           leadMinutes={village.alertLeadMinutes}
           dmAvailable={ownership.dmAvailable}
-          isAccountOwner={ownership.state === "account_owner"}
         />
       )}
 

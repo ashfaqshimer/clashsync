@@ -31,15 +31,12 @@ export function AlertsCard({
   dmOn,
   leadMinutes,
   dmAvailable,
-  isAccountOwner,
 }: {
   tag: string;
   webhookOn: boolean;
   dmOn: boolean;
   leadMinutes: number;
   dmAvailable: boolean;
-  /** DMs go to the owning account, so a legacy (not linked) owner can't use them. */
-  isAccountOwner: boolean;
 }) {
   const router = useRouter();
   const [webhookUrl, setWebhookUrl] = useState("");
@@ -131,28 +128,22 @@ export function AlertsCard({
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <MessageCircle className={`w-4 h-4 ${dmOn ? "text-emerald-400" : "text-slate-500"}`} />
-            {isAccountOwner
-              ? dmOn
-                ? "Sending you a DM"
-                : "Get alerts as a Discord DM"
-              : "Log in with Discord to get alerts as DMs"}
+            {dmOn ? "Sending you a DM" : "Get alerts as a Discord DM"}
           </div>
-          {isAccountOwner && (
-            <button
-              type="button"
-              onClick={() => call(dmOn ? "dm-off" : "dm-on")}
-              disabled={busy}
-              className={
-                dmOn
-                  ? secondary
-                  : "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5865F2] hover:bg-[#4752c4] disabled:opacity-50 text-white text-xs font-semibold transition cursor-pointer"
-              }
-            >
-              {spinner("dm-on")}
-              {spinner("dm-off")}
-              {dmOn ? "Turn off" : "Turn on"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => call(dmOn ? "dm-off" : "dm-on")}
+            disabled={busy}
+            className={
+              dmOn
+                ? secondary
+                : "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5865F2] hover:bg-[#4752c4] disabled:opacity-50 text-white text-xs font-semibold transition cursor-pointer"
+            }
+          >
+            {spinner("dm-on")}
+            {spinner("dm-off")}
+            {dmOn ? "Turn off" : "Turn on"}
+          </button>
         </div>
       )}
 

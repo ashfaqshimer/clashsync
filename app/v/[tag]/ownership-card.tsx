@@ -3,20 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Link2, Loader2, Shield, ShieldCheck } from "lucide-react";
+import { Loader2, Shield, ShieldCheck } from "lucide-react";
 import { DiscordLoginButton } from "@/app/_components/account-menu";
 
 export type OwnershipState =
   /** Linked to the viewer's account. */
   | "account_owner"
-  /** Verified on this device before accounts existed, not linked yet. */
-  | "legacy_owner"
   /** Nobody has claimed it. */
   | "unclaimed"
   /** Linked to someone else's account. */
-  | "claimed_other"
-  /** Verified the old way by someone else's device. */
-  | "legacy_protected";
+  | "claimed_other";
 
 export interface OwnershipView {
   state: OwnershipState;
@@ -34,18 +30,6 @@ export function OwnershipCard({ tag, ownership }: { tag: string; ownership: Owne
         <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
         This village is linked to your Discord account. Only you can sync {tag}, from any device.
       </section>
-    );
-  }
-
-  if (state === "legacy_owner") {
-    return (
-      <Card icon={<Link2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />} title="Link this village to your account">
-        You verified {tag} on this device. Log in with Discord to link it, so you can sync it from
-        any device and get alerts as Discord DMs.
-        <div className="mt-3">
-          <DiscordLoginButton />
-        </div>
-      </Card>
     );
   }
 
@@ -73,11 +57,11 @@ export function OwnershipCard({ tag, ownership }: { tag: string; ownership: Owne
     );
   }
 
-  // Claimed by someone else (or protected the old way): the API token settles it
+  // Claimed by someone else: the API token settles it
   return (
     <Card
       icon={<Shield className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />}
-      title={state === "claimed_other" ? "Linked to another account" : "This village is protected"}
+      title="Linked to another account"
     >
       If {tag} is yours, take it over with the API token from your game. It moves the village to your
       account. In-game: Settings → More Settings → API Token → Show, then copy.
