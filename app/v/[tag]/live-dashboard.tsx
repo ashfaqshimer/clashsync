@@ -99,7 +99,7 @@ export function LiveDashboard({
           <Heading as="h1" size="lg" gold className="truncate">
             {village.playerTag}
           </Heading>
-          <p className="text-sm font-semibold text-cream/80 mt-1 min-h-5 tabular-nums">
+          <p className="text-sm font-semibold text-cream/90 mt-1 min-h-5 tabular-nums">
             {exportAge === null
               ? " "
               : `Synced ${exportAge < 60 ? "just now" : `${formatDuration(exportAge)} ago`}`}

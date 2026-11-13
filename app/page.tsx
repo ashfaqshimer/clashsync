@@ -207,7 +207,7 @@ export default function Home() {
                 <Heading as="h1" size="lg">
                   {activeTab === "json" ? "Sync Village" : "Player Tag Lookup"}
                 </Heading>
-                <p className="text-sm text-cream/80 mt-1.5">
+                <p className="text-sm text-cream/90 mt-1.5">
                   {activeTab === "json"
                     ? "Paste your village export data to track all active builders, laboratory research, and pet upgrades."
                     : "Search your player tag to view your village profile and tracked timers."}
@@ -215,10 +215,9 @@ export default function Home() {
               </div>
             </div>
 
-            <div role="tablist" aria-label="How to load your village" className="well flex shrink-0 items-center gap-1 p-1.5 self-start">
+            <div role="group" aria-label="How to load your village" className="well flex shrink-0 items-center gap-1 p-1.5 self-start">
               <Button
-                role="tab"
-                aria-selected={activeTab === "json"}
+                aria-pressed={activeTab === "json"}
                 size="sm"
                 variant={activeTab === "json" ? "gold" : "ghost"}
                 className={activeTab === "json" ? undefined : "mb-1 text-cream/70 hover:text-cream"}
@@ -228,8 +227,7 @@ export default function Home() {
               </Button>
 
               <Button
-                role="tab"
-                aria-selected={activeTab === "tag"}
+                aria-pressed={activeTab === "tag"}
                 size="sm"
                 variant={activeTab === "tag" ? "blue" : "ghost"}
                 className={activeTab === "tag" ? undefined : "mb-1 text-cream/70 hover:text-cream"}

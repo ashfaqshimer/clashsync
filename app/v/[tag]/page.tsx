@@ -51,7 +51,7 @@ async function Village({ slug }: { slug: string }) {
         <Heading as="h1" size="lg">
           <span className="text-gold-300">{tag}</span> hasn&apos;t been synced yet
         </Heading>
-        <p className="text-sm font-semibold text-cream/85 max-w-md mx-auto">
+        <p className="text-sm font-semibold text-cream/90 max-w-md mx-auto">
           Paste your village export on the home page and your upgrades will show up here.
         </p>
         <Link href="/" className={buttonClass({ size: "lg" })}>

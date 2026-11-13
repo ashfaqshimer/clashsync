@@ -22,9 +22,9 @@
   --stone-line: #2c4466;
 
   /* Wood panels */
-  --wood-light: #a0672f;
-  --wood: #84501f;
-  --wood-dark: #5c3414;
+  --wood-light: #86532a;
+  --wood: #70421c;
+  --wood-dark: #4d2b10;
   --wood-edge: #2a1608;
 
   /* Gold (primary) */
@@ -53,7 +53,7 @@
   --cream: #fdf3dc;
   --text: #e8eef8;
   --text-muted: #9fb0c8;
-  --text-faint: #6c7f9b;
+  --text-faint: #8a9cb8;
 
   --background: var(--night-950);
   --foreground: var(--text);

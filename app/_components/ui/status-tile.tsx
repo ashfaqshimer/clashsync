@@ -29,9 +29,12 @@ export function StatusTile({
       )}
     >
       {alert && (
-        <Pip className="absolute -top-2 -right-2" aria-label="Needs attention">
-          !
-        </Pip>
+        <>
+          <Pip className="absolute -top-2 -right-2" aria-hidden>
+            !
+          </Pip>
+          <span className="sr-only">Needs attention: </span>
+        </>
       )}
       <div className="flex items-center gap-2">
         <IconChip tone={tone} size="sm">

@@ -29,7 +29,7 @@ export function NoVillagesView() {
   return (
     <Card tone="wood" className="p-6 sm:p-8 text-center space-y-3">
       <p className="font-display text-xl text-cream">No villages linked yet.</p>
-      <p className="text-sm font-semibold text-cream/80">
+      <p className="text-sm font-semibold text-cream/90">
         Sync a village export while you&apos;re logged in and it&apos;s linked to your account.
       </p>
       <div className="pt-1">

@@ -25,7 +25,7 @@ export function ExportTab({
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <span className="text-xs font-semibold text-cream/75">
+        <span className="text-xs font-semibold text-cream/90">
           In-game: Settings → More Settings → Export Village data → Copy
         </span>
 
@@ -63,7 +63,7 @@ export function ExportTab({
           {copyFeedback ? (
             <span className="text-gold-200">{copyFeedback}</span>
           ) : (
-            <span className="text-cream/70">Automatically tracks and calculates exact finish times.</span>
+            <span className="text-cream/90">Automatically tracks and calculates exact finish times.</span>
           )}
         </div>
 
