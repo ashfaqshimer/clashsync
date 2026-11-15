@@ -46,7 +46,7 @@ Conventions: game times are `bigint` Unix seconds, app events are `timestamptz`.
   - `current_level`, `target_level`, `original_finish_time`, `current_finish_time` (Unix seconds), `is_gear_up`, `is_extra_slot`, `notified_at`
 - **`boosts`**: potion log for undo: `kind` (`BUILDER_POTION | RESEARCH_POTION`), `window_start/end`, `previous_boost_ends_at`, `changes` jsonb (`{upgradeId, from, to}[]`), `status` (`APPLIED | UNDONE | SUPERSEDED`).
 
-Schema changes: edit `schema.ts` → `pnpm db:generate --name <change>` → review/hand-edit the SQL in `drizzle/` → `pnpm test` → `pnpm db:migrate`. Never use `drizzle-kit push`.
+Schema changes: edit `schema.ts` → `pnpm db:generate --name <change>` → review/hand-edit the SQL in `drizzle/` → `pnpm test` → `pnpm db:migrate`. Never use `drizzle-kit push`. `.env.local` is the Neon **development** branch; also migrate the **production** branch (`DATABASE_URL=<prod URL> pnpm db:migrate`) before deploying, or prod fails with `column … does not exist`.
 
 ## 5. Environment Variables
 See `.env.example`. Main ones: `DATABASE_URL` (pooled Neon), `NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_SECRET` (signs sessions **and** encrypts webhooks/OAuth tokens; changing it means saved webhooks have to be added again), `DISCORD_CLIENT_ID/SECRET`, `DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` (DM alerts), `QSTASH_*`, `CLASH_API_KEY`.
