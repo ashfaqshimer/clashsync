@@ -167,12 +167,16 @@ export function parseVillageExport(rawJson: string): ParseResult {
     }
   }
 
-  // Builder's Hut carries a `cnt` when the export lists it
-  const hut = Array.isArray(data.buildings)
-    ? data.buildings.find((b) => Number(b.data) === BUILDERS_HUT_ID)
-    : undefined;
-  const builderHutCount =
-    hut && typeof hut.cnt === "number" && hut.cnt > 0 ? hut.cnt : undefined;
+  // Builder's Huts are grouped by level (`cnt` per entry); a hut that is being
+  // upgraded gets its own entry with a `timer` and no `cnt`, so sum them all.
+  const huts = Array.isArray(data.buildings)
+    ? data.buildings.filter((b) => Number(b.data) === BUILDERS_HUT_ID)
+    : [];
+  const hutTotal = huts.reduce(
+    (sum, b) => sum + (typeof b.cnt === "number" && b.cnt > 0 ? b.cnt : 1),
+    0
+  );
+  const builderHutCount = hutTotal > 0 ? hutTotal : undefined;
 
   // Sort by finish time ascending (soonest first)
   upgrades.sort((a, b) => a.currentFinishTime - b.currentFinishTime);

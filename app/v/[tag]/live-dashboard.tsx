@@ -89,11 +89,22 @@ export function LiveDashboard({
   const mainSlot = (key: GroupKey) => (grouped.get(key) ?? []).filter((u) => !u.isExtraSlot);
 
   const busyBuilders = mainSlot("builders").filter(isRunning);
+  const goblinBusy = (grouped.get("builders") ?? []).some((u) => u.isExtraSlot && isRunning(u));
   const nextBuilderFree = busyBuilders[0]?.currentFinishTime;
+  // The export only counts Builder's Huts; B.O.B. (and any other bonus builder)
+  // isn't listed, so never claim fewer builders than are visibly working.
+  const builderTotal =
+    village.builderCount !== null ? Math.max(village.builderCount, busyBuilders.length) : null;
   const idleBuilders =
-    village.builderCount !== null
-      ? Math.max(0, village.builderCount - busyBuilders.length)
-      : null;
+    builderTotal !== null ? Math.max(0, builderTotal - busyBuilders.length) : null;
+  const builderDetail =
+    idleBuilders !== null && idleBuilders > 0
+      ? `${idleBuilders} builder${idleBuilders === 1 ? "" : "s"} idle!`
+      : nextBuilderFree && now !== null
+        ? `Next free in ${formatDuration(nextBuilderFree - now)}`
+        : busyBuilders.length === 0
+          ? "All builders free"
+          : null;
 
   const labBusy = mainSlot("lab").filter(isRunning);
   const petsBusy = mainSlot("pets").filter(isRunning);
@@ -169,26 +180,22 @@ export function LiveDashboard({
         <StatusTile
           group="builders"
           headline={
-            idleBuilders !== null
-              ? `${busyBuilders.length}/${village.builderCount} busy`
+            builderTotal !== null
+              ? `${busyBuilders.length}/${builderTotal} busy`
               : `${busyBuilders.length} busy`
           }
           detail={
-            idleBuilders !== null && idleBuilders > 0
-              ? `${idleBuilders} builder${idleBuilders === 1 ? "" : "s"} idle!`
-              : nextBuilderFree && now !== null
-                ? `Next free in ${formatDuration(nextBuilderFree - now)}`
-                : busyBuilders.length === 0
-                  ? "All builders free"
-                  : null
+            goblinBusy
+              ? ["+ Goblin", builderDetail].filter(Boolean).join(" · ")
+              : builderDetail
           }
           alert={(idleBuilders ?? 0) > 0 || (busyBuilders.length === 0 && now !== null)}
           hint={
             <Hint label="busy builders">
-              {village.builderCount !== null
-                ? `How many of your ${village.builderCount} builders are upgrading something right now.`
+              {builderTotal !== null
+                ? `How many of your ${builderTotal} builders are upgrading something right now.`
                 : "How many builders are upgrading something right now. This export didn’t include your total number of builders, so we can’t tell how many are free."}{" "}
-              The Goblin Builder and extra builder slots aren&apos;t counted.
+              The Goblin Builder is shown separately (&ldquo;+ Goblin&rdquo;) because it&apos;s a temporary bonus builder.
             </Hint>
           }
         />

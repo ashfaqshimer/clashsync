@@ -140,6 +140,45 @@ describe("parseVillageExport", () => {
     expect(parse({ timestamp: TS, buildings: [] }).builderHutCount).toBeUndefined();
   });
 
+  it("counts every Builder's Hut entry, including one being upgraded", () => {
+    const r = parse({
+      timestamp: TS,
+      buildings: [
+        { data: 1000015, lvl: 3, timer: 114116 }, // upgrading hut: own entry, no cnt
+        { data: 1000015, lvl: 4, cnt: 3 },
+        { data: 1000015, lvl: 2, cnt: 2 },
+      ],
+    });
+    expect(r.builderHutCount).toBe(6);
+    expect(r.builderUpgradesCount).toBe(1); // the hut upgrade itself occupies a builder
+  });
+
+  it("reads a real export: hut upgrade, heroes and the Goblin (crafted modules have no timers)", () => {
+    // Trimmed from a real TH export: 6 regular builder timers + 1 Goblin (`extra`).
+    const r = parse({
+      timestamp: TS,
+      buildings: [
+        { data: 1000011, lvl: 10, timer: 51278 },
+        { data: 1000011, lvl: 11, timer: 30503, extra: true },
+        { data: 1000013, lvl: 8, gear_up: 1 },
+        { data: 1000015, lvl: 3, timer: 114116 },
+        { data: 1000097, types: [{ data: 103000011, modules: [{ data: 102000033, lvl: 1 }] }] },
+        { data: 1000015, lvl: 3, cnt: 4 },
+      ],
+      heroes: [
+        { data: 28000000, lvl: 85, timer: 126469 },
+        { data: 28000001, lvl: 92, timer: 155085 },
+        { data: 28000002, lvl: 71, timer: 143937 },
+        { data: 28000004, lvl: 54 },
+        { data: 28000006, lvl: 76, timer: 25140 },
+      ],
+    });
+    const home = r.upgrades.filter((u) => u.category === "BUILDER");
+    expect(home).toHaveLength(7);
+    expect(home.filter((u) => u.isGoblinOrHelper)).toHaveLength(1);
+    expect(r.builderHutCount).toBe(5);
+  });
+
   it("applies a running builder potion to home builder upgrades only", () => {
     const r = parse({
       timestamp: TS,
