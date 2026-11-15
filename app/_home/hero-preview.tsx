@@ -38,7 +38,7 @@ export function HeroPreview() {
                 </IconChip>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-bold text-cream">{upgradeLabel(u)}</div>
-                  <div className="text-[11px] font-semibold text-faint tabular-nums">
+                  <div className="text-xs font-semibold text-faint tabular-nums">
                     Lv {u.currentLevel} → {u.targetLevel}
                   </div>
                 </div>

@@ -50,7 +50,8 @@ app/
   api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
   api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
   v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers). Owners get "Update timers"
-                                (in-place paste, rejects other villages' exports) and a setup checklist; profile line = cached Supercell API
+                                (in-place paste, rejects other villages' exports), a setup checklist, a "done" prompt, the Next 24 hours timeline,
+                                a live countdown in the tab title (use-tab-countdown.ts) and a sticky mobile Update button; profile line = cached Supercell API
 lib/
   parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side
   clash-data.ts    CLASH_ENTITIES: numeric data ID → {name, category}; resolveEntity() fallback heuristics by section
@@ -67,6 +68,7 @@ lib/
   app-url.ts       appUrl(): public base URL (links in messages, auth baseURL)
   village.ts       getVillage(tag) — server data access for the dashboard
   village-status.ts formatAge() ("3h 12m ago") + villageStatus(): idle builders / stale export / needs attention for list rows. Pure
+  timeline.ts      Pure math for the dashboard's "Next 24 hours" strip: bar positions, night bands (23:00–07:00 viewer time)
   boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
   upgrade-label.ts upgradeLabel(): display name + "(Gear-Up)" / "(Goblin/Extra)". The DB stores the plain name
   secrets.ts       sealWebhookUrl / openWebhookUrl: encryption at rest keyed from BETTER_AUTH_SECRET (server only)
