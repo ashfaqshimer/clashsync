@@ -7,6 +7,7 @@ import { ALERT_LEAD_OPTIONS, alertLeadLabel, SWEEP_INTERVAL_SECONDS } from "@/li
 import { IconChip } from "@/app/_components/ui/badge";
 import { Button, buttonClass } from "@/app/_components/ui/button";
 import { Card, Heading, Well } from "@/app/_components/ui/card";
+import { Hint } from "@/app/_components/ui/hint";
 
 type Action = "save" | "test" | "remove" | "dm-on" | "dm-off" | "lead";
 
@@ -153,6 +154,11 @@ export function AlertsCard({
           <div className="flex items-center gap-2 text-sm font-bold text-cream/90">
             <BellRing className={`w-4 h-4 ${webhookOn ? "text-grass" : "text-faint"}`} />
             {webhookOn ? "Posting to a Discord channel" : "Post to a Discord channel (webhook)"}
+            <Hint label="webhook">
+              A webhook is a link that lets ClashSync post in one Discord channel, like your clan&apos;s.
+              You need permission to manage that channel to create one. Anyone who has the link can post
+              there, so keep it private.
+            </Hint>
           </div>
           {!editing && (
             <div className="flex gap-2">

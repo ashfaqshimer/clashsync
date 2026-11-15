@@ -13,6 +13,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
+import { Hint } from "@/app/_components/ui/hint";
 import { SetupChecklist } from "./setup-checklist";
 import { UpdatePanel } from "./update-panel";
 import { formatDuration } from "@/lib/parser";
@@ -181,6 +182,14 @@ export function LiveDashboard({
                   : null
           }
           alert={(idleBuilders ?? 0) > 0 || (busyBuilders.length === 0 && now !== null)}
+          hint={
+            <Hint label="busy builders">
+              {village.builderCount !== null
+                ? `How many of your ${village.builderCount} builders are upgrading something right now.`
+                : "How many builders are upgrading something right now. This export didn’t include your total number of builders, so we can’t tell how many are free."}{" "}
+              The Goblin Builder and extra builder slots aren&apos;t counted.
+            </Hint>
+          }
         />
         <SlotTile group="lab" busy={labBusy} now={now} idleText="Lab is idle!" />
         <SlotTile group="pets" busy={petsBusy} now={now} idleText="Pet House is idle" />
@@ -235,14 +244,16 @@ function StatusTile({
   headline,
   detail,
   alert,
+  hint,
 }: {
   group: GroupKey;
   headline: string;
   detail: string | null;
   alert: boolean;
+  hint?: ReactNode;
 }) {
   const { label, Icon, tone } = GROUPS[group];
-  return <Tile icon={Icon} tone={tone} label={label} headline={headline} detail={detail} alert={alert} />;
+  return <Tile icon={Icon} tone={tone} label={label} headline={headline} detail={detail} alert={alert} hint={hint} />;
 }
 
 function SlotTile({

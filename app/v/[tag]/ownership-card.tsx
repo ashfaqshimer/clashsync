@@ -8,6 +8,7 @@ import { DiscordLoginButton } from "@/app/_components/account-menu";
 import { IconChip } from "@/app/_components/ui/badge";
 import { Button } from "@/app/_components/ui/button";
 import { Card as Panel, Heading } from "@/app/_components/ui/card";
+import { Hint } from "@/app/_components/ui/hint";
 
 export type OwnershipState =
   /** Linked to the viewer's account. */
@@ -68,8 +69,14 @@ export function OwnershipCard({ tag, ownership }: { tag: string; ownership: Owne
       icon={<IconChip tone="sky"><Shield /></IconChip>}
       title="Linked to another account"
     >
-      If {tag} is yours, take it over with the API token from your game. It moves the village to your
-      account. In-game: Settings → More Settings → API Token → Show, then copy.
+      If {tag} is yours, take it over with the API token from your game{" "}
+      <Hint label="API token">
+        A short code the game shows only to whoever is logged in to the account, so it proves the village
+        is yours. It changes often, so copy a fresh one right before you paste it. It can&apos;t be used
+        to log in or change anything in your game.
+      </Hint>
+      . It moves the village to your account. In-game: Settings → More Settings → API Token → Show, then
+      copy.
       <div className="mt-3">
         {loggedIn ? <TakeoverForm tag={tag} /> : <DiscordLoginButton label="Log in to take it over" />}
       </div>

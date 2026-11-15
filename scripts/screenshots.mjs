@@ -108,6 +108,15 @@ const STATES = [
     ],
   },
 
+  {
+    page: "dashboard", name: "hints-open", path: "/dev/dashboard",
+    steps: [step(`document.querySelector("[aria-label*=\\"busy builders\\"]").click();`)],
+  },
+  {
+    page: "dashboard", name: "hint-api-token", path: "/dev/dashboard",
+    steps: [step(`document.querySelector("[aria-label*=\\"API token\\"]").click();`)],
+  },
+
   // My villages + home welcome-back (fixtures) + the real logged-out page
   { page: "villages", name: "states", path: "/dev/villages" },
   { page: "villages", name: "logged-out", path: "/villages" },

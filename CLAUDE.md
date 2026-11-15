@@ -35,8 +35,6 @@ app/
                                 with ?synced=N), find-by-tag, features, faq, welcome-back, site-header (header + footer w/ Supercell disclaimer)
   demo/                         Public read-only demo dashboard (LiveDashboard with demo prop, data from lib/demo-village.ts)
   api/village/sync/route.ts     POST {rawJson, playerTag?} → parse, upsert user by tag, CANCEL old ACTIVE upgrades, insert new (one db.batch)
-  api/village/upgrades/route.ts GET ?tag= → ACTIVE upgrades for that tag, remaining time recomputed from now
-  api/player/[tag]/route.ts     GET → official Supercell API profile (lib/clash-api.ts)
   api/village/claim/route.ts    POST {tag, token} → API-token takeover: moves the village to the logged-in account (login required)
   api/village/notifications/route.ts  PUT webhook · PATCH {dm} DM alerts · POST test · DELETE webhook (owner only)
   api/auth/[...all]/route.ts    Better Auth handler (Discord OAuth, sessions)

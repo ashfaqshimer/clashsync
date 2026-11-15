@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { IconChip, Pip, type Tone } from "./badge";
 import { cx } from "./cx";
@@ -13,6 +14,7 @@ export function StatusTile({
   headline,
   detail,
   alert,
+  hint,
 }: {
   icon: LucideIcon;
   tone: Tone;
@@ -20,6 +22,8 @@ export function StatusTile({
   headline: string;
   detail: string | null;
   alert: boolean;
+  /** Optional "?" explanation next to the label. */
+  hint?: ReactNode;
 }) {
   return (
     <div
@@ -41,6 +45,7 @@ export function StatusTile({
           <Icon />
         </IconChip>
         <span className="label-caps truncate">{label}</span>
+        {hint}
       </div>
       <div className="mt-2.5 font-display text-xl leading-tight text-cream tabular-nums sm:text-2xl">
         {headline}
