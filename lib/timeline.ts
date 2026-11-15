@@ -1,54 +1,103 @@
 /**
- * Pure math for the dashboard's "next 24 hours" strip: where each running
- * upgrade's bar ends, and which parts of the window are night-time. All times
- * are Unix seconds; positions are fractions of the window (0–1).
+ * Pure math for the dashboard's "Tonight" card: the viewer's next (or current)
+ * night, which upgrades finish before it, during it (and so sit idle until
+ * morning) or after it, and where finishes land on a 24h strip. All times are
+ * Unix seconds; strip positions are fractions of the window (0–1).
  */
 
 export const TIMELINE_WINDOW_SECONDS = 24 * 3600;
 
-/** Local hours treated as "while you sleep" (23:00 → 07:00). */
-export const NIGHT_START_HOUR = 23;
-export const NIGHT_END_HOUR = 7;
+/** Default night: 23:00 → 07:00 viewer time. Players can change it on the card. */
+export const DEFAULT_NIGHT = { startHour: 23, endHour: 7 } as const;
 
-export interface TimelineBar {
-  /** 0–1 position of the finish, capped at 1. */
-  end: number;
-  /** Finishes after the window ends. */
-  beyond: boolean;
+export interface NightHours {
+  startHour: number;
+  endHour: number;
 }
 
-export function timelineBar(finish: number, now: number, windowSeconds = TIMELINE_WINDOW_SECONDS): TimelineBar {
-  const end = (finish - now) / windowSeconds;
-  return { end: Math.min(1, Math.max(0, end)), beyond: end > 1 };
+/** Hours from bedtime to wake-up (handles nights that cross midnight). */
+function nightLengthHours({ startHour, endHour }: NightHours): number {
+  return (((endHour - startHour) % 24) + 24) % 24 || 24;
 }
 
 /**
- * Night bands inside [now, now + window], as {start, end} fractions.
+ * The night that is running now, or else the next one, as epochs.
  * `offsetMinutes` is the viewer's UTC offset (east positive, i.e.
  * `-new Date().getTimezoneOffset()`).
+ */
+export function nightWindow(
+  now: number,
+  offsetMinutes: number,
+  hours: NightHours = DEFAULT_NIGHT
+): { start: number; end: number } {
+  const offset = offsetMinutes * 60;
+  const localNow = now + offset;
+  const dayStart = localNow - (((localNow % 86400) + 86400) % 86400) - offset;
+  const length = nightLengthHours(hours) * 3600;
+  // Yesterday's night may still be running; otherwise today's or tomorrow's is next
+  for (let d = -1; d <= 1; d++) {
+    const start = dayStart + d * 86400 + hours.startHour * 3600;
+    if (now < start + length) return { start, end: start + length };
+  }
+  const start = dayStart + 2 * 86400 + hours.startHour * 3600;
+  return { start, end: start + length };
+}
+
+export interface NightPlan<T> {
+  /** Finish before bedtime: start the next upgrade before going to sleep. */
+  beforeBed: T[];
+  /** Finish while asleep, with how long the slot then sits idle until wake-up. */
+  overnight: Array<{ item: T; idleSeconds: number }>;
+  /** Still working at wake-up. */
+  allNight: T[];
+  /** Total idle time across the overnight finishes. */
+  idleSeconds: number;
+}
+
+/** Sorts running upgrades into before bed / overnight / all night. */
+export function planNight<T extends { finish: number }>(
+  items: T[],
+  night: { start: number; end: number },
+  now: number
+): NightPlan<T> {
+  const running = items.filter((i) => i.finish > now).sort((a, b) => a.finish - b.finish);
+  const beforeBed = running.filter((i) => i.finish < night.start);
+  const overnight = running
+    .filter((i) => i.finish >= night.start && i.finish <= night.end)
+    .map((item) => ({ item, idleSeconds: night.end - item.finish }));
+  const allNight = running.filter((i) => i.finish > night.end);
+  return {
+    beforeBed,
+    overnight,
+    allNight,
+    idleSeconds: overnight.reduce((sum, o) => sum + o.idleSeconds, 0),
+  };
+}
+
+/** Position of an epoch on the strip [now, now + window], or null when outside it. */
+export function stripPosition(epoch: number, now: number, windowSeconds = TIMELINE_WINDOW_SECONDS): number | null {
+  const pos = (epoch - now) / windowSeconds;
+  return pos < 0 || pos > 1 ? null : pos;
+}
+
+/**
+ * Night bands inside the strip, as {start, end} fractions (at most two: the
+ * current/next night and, for short nights, the one after).
  */
 export function nightBands(
   now: number,
   offsetMinutes: number,
+  hours: NightHours = DEFAULT_NIGHT,
   windowSeconds = TIMELINE_WINDOW_SECONDS
 ): Array<{ start: number; end: number }> {
-  const offset = offsetMinutes * 60;
-  const localNow = now + offset;
-  const dayStart = localNow - (((localNow % 86400) + 86400) % 86400);
   const bands: Array<{ start: number; end: number }> = [];
-  // Nights starting yesterday through tomorrow cover any 24h window
-  for (let d = -1; d <= 1; d++) {
-    const start = dayStart + d * 86400 + NIGHT_START_HOUR * 3600 - offset;
-    const end = dayStart + (d + 1) * 86400 + NIGHT_END_HOUR * 3600 - offset;
-    const s = Math.max(0, (start - now) / windowSeconds);
-    const e = Math.min(1, (end - now) / windowSeconds);
-    if (e > s) bands.push({ start: s, end: e });
+  let night = nightWindow(now, offsetMinutes, hours);
+  while (night.start < now + windowSeconds) {
+    bands.push({
+      start: Math.max(0, (night.start - now) / windowSeconds),
+      end: Math.min(1, (night.end - now) / windowSeconds),
+    });
+    night = { start: night.start + 86400, end: night.end + 86400 };
   }
   return bands;
-}
-
-/** True when `finish` lands in a night band (the slot then sits idle until morning). */
-export function finishesOvernight(finish: number, now: number, offsetMinutes: number): boolean {
-  const pos = (finish - now) / TIMELINE_WINDOW_SECONDS;
-  return nightBands(now, offsetMinutes).some((b) => pos >= b.start && pos <= b.end);
 }

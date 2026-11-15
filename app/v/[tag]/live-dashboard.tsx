@@ -24,7 +24,7 @@ import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { AlertsCard } from "./alerts-card";
 import { OwnershipCard, type OwnershipView } from "./ownership-card";
 import { PotionBar } from "./potion-bar";
-import { TimelineCard } from "./timeline-card";
+import { TonightCard } from "./tonight-card";
 import { useTabCountdown } from "./use-tab-countdown";
 import { useNow } from "./use-now";
 import type { LucideIcon } from "lucide-react";
@@ -260,11 +260,14 @@ export function LiveDashboard({
         <SlotTile group="builderBase" busy={bbBusy} now={now} idleText="Nothing upgrading" />
       </div>
 
-      <TimelineCard
+      <TonightCard
         now={now}
         rows={village.upgrades
           .filter((u) => now === null || u.currentFinishTime > now)
-          .map((u) => ({ id: u.id, label: upgradeLabel(u), tone: GROUPS[groupOf(u)].tone, finish: u.currentFinishTime }))}
+          .map((u) => {
+            const { tone, Icon } = GROUPS[groupOf(u)];
+            return { id: u.id, label: upgradeLabel(u), tone, Icon, finish: u.currentFinishTime };
+          })}
       />
 
       {/* Upgrade lists */}
