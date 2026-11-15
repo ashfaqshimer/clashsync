@@ -126,6 +126,9 @@ export const villages = pgTable(
     // From the latest export
     lastExportTimestamp: bigint("last_export_timestamp", { mode: "number" }),
     builderCount: integer("builder_count"), // Builder's Hut count, when the export has it
+    // From the Supercell API (the export has no player name). Set on sync, refreshed when the dashboard loads
+    playerName: text("player_name"),
+    townHallLevel: integer("town_hall_level"),
     // Potions running (Unix seconds); the next potion starts when these end
     builderBoostEndsAt: bigint("builder_boost_ends_at", { mode: "number" }),
     labBoostEndsAt: bigint("lab_boost_ends_at", { mode: "number" }),

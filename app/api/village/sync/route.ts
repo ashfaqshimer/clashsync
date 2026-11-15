@@ -9,6 +9,9 @@ import { finishWithRunningBoost, POTIONS } from "@/lib/boosts";
 import { getSessionUser } from "@/lib/auth";
 import { accessDeniedMessage, getVillageAccess } from "@/lib/ownership";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
+import { fetchPlayerProfile } from "@/lib/clash-api";
+
+const PROFILE_TIMEOUT_MS = 2500;
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,11 +47,15 @@ export async function POST(request: NextRequest) {
     }
     const exportTimestamp = parseResult.exportTimestamp || Math.floor(Date.now() / 1000);
 
-    const existingVillages = await db
-      .select()
-      .from(villages)
-      .where(eq(villages.playerTag, playerTag))
-      .limit(1);
+    // The export has no player name: look it up alongside the village read.
+    // Best effort with a short timeout; a slow or missing API never blocks a sync.
+    const [existingVillages, profile] = await Promise.all([
+      db.select().from(villages).where(eq(villages.playerTag, playerTag)).limit(1),
+      fetchPlayerProfile(playerTag, { timeoutMs: PROFILE_TIMEOUT_MS }),
+    ]);
+    const profileFields = profile.success && profile.player
+      ? { playerName: profile.player.name, townHallLevel: profile.player.townHallLevel }
+      : {};
 
     // Claimed villages only sync for their account; a logged-in sync of an
     // unclaimed village claims it (see lib/ownership.ts)
@@ -101,6 +108,7 @@ export async function POST(request: NextRequest) {
                 ? { builderCount: parseResult.builderHutCount }
                 : {}),
               ...boostFields,
+              ...profileFields,
             })
             .where(eq(villages.id, villageId)),
           // Potions applied before this sync can no longer be undone
@@ -127,6 +135,7 @@ export async function POST(request: NextRequest) {
             lastExportTimestamp: exportTimestamp,
             builderCount: parseResult.builderHutCount ?? null,
             ...boostFields,
+            ...profileFields,
           }),
         ];
 

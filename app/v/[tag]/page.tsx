@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getVillage } from "@/lib/village";
+import type { Metadata } from "next";
+import { getVillage, getVillageName } from "@/lib/village";
 import { getVillageAccess } from "@/lib/ownership";
 import { isDmConfigured } from "@/lib/discord";
 import { SubpageHeader } from "@/app/_components/subpage-header";
@@ -12,6 +13,14 @@ import { normalizeTag, tagToSlug } from "@/lib/tags";
 import { LiveDashboard } from "./live-dashboard";
 import { PlayerProfile } from "./player-profile";
 import { SyncedBanner, type JustSynced } from "./synced-banner";
+
+/** Tab title: the player's name when we know it, so several open dashboards are easy to tell apart. */
+export async function generateMetadata({ params }: PageProps<"/v/[tag]">): Promise<Metadata> {
+  const tag = normalizeTag((await params).tag);
+  if (!tag) return { title: "Village not found | ClashSync" };
+  const name = await getVillageName(tag).catch(() => null);
+  return { title: `${name ?? tag} | ClashSync` };
+}
 
 export default function VillagePage({ params, searchParams }: PageProps<"/v/[tag]">) {
   return (
@@ -80,7 +89,10 @@ async function Village({ slug, justSynced }: { slug: string; justSynced: JustSyn
         ownership={{ state, loggedIn: access.viewer !== null, dmAvailable: isDmConfigured() }}
         profile={
           <Suspense fallback={null}>
-            <PlayerProfile tag={village.playerTag} />
+            <PlayerProfile
+              tag={village.playerTag}
+              stored={{ playerName: village.playerName, townHallLevel: village.townHallLevel }}
+            />
           </Suspense>
         }
       />

@@ -33,6 +33,8 @@ function up(
 export function demoVillage(now: number): VillageSnapshot {
   return {
     playerTag: DEMO_TITLE,
+    playerName: null,
+    townHallLevel: null,
     lastExportTimestamp: now - 25 * 60,
     builderCount: 6,
     isVerified: false,

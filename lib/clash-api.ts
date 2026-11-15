@@ -160,7 +160,10 @@ export async function verifyPlayerToken(
 /**
  * Fetches public player information from the official Clash of Clans Developer API.
  */
-export async function fetchPlayerProfile(rawTag: string): Promise<PlayerLookupResult> {
+export async function fetchPlayerProfile(
+  rawTag: string,
+  { timeoutMs }: { timeoutMs?: number } = {}
+): Promise<PlayerLookupResult> {
   // Ensure leading '#' is present and format tag for URL encoding
   const formattedTag = rawTag.trim().startsWith("#")
     ? rawTag.trim()
@@ -190,6 +193,7 @@ export async function fetchPlayerProfile(rawTag: string): Promise<PlayerLookupRe
           Accept: "application/json",
         },
         cache: "no-store",
+        signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
       }
     );
 

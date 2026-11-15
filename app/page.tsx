@@ -6,7 +6,7 @@ import { Hero } from "./_home/hero";
 import { HowItWorks } from "./_home/how-it-works";
 import { SiteFooter, SiteHeader } from "./_home/site-header";
 import { SyncPanel } from "./_home/sync-panel";
-import { HomeTop } from "./_home/welcome-back";
+import { FindByTagUnlessListed, HomeTop } from "./_home/welcome-back";
 
 export default function Home() {
   return (
@@ -23,7 +23,9 @@ export default function Home() {
 
         <section aria-label="Sync your village" className="mx-auto max-w-3xl space-y-4">
           <SyncPanel />
-          <FindByTag />
+          <Suspense fallback={<FindByTag />}>
+            <FindByTagUnlessListed />
+          </Suspense>
         </section>
 
         <Features />

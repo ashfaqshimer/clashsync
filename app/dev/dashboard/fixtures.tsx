@@ -34,6 +34,8 @@ function up(
 function base(now: number): VillageSnapshot {
   return {
     playerTag: "#2PP0JQ9V",
+    playerName: "Chief Ada",
+    townHallLevel: 16,
     lastExportTimestamp: now - 40 * 60,
     builderCount: 6,
     isVerified: true,
@@ -87,6 +89,7 @@ export function DashboardFixtures() {
           profile={
             <PlayerProfileLine
               profile={{ name: "Chief Ada", townHallLevel: 16, trophies: 5123, clanName: "Night Owls", clanBadge: null }}
+              showName={false}
             />
           }
         />
@@ -98,6 +101,8 @@ export function DashboardFixtures() {
             ...b,
             lastExportTimestamp: now - 30 * 3600,
             builderCount: null,
+            playerName: null,
+            townHallLevel: null,
             labBoostEndsAt: null,
             undoableBoost: null,
             upgrades: b.upgrades.filter((u) => u.category !== "LABORATORY"),

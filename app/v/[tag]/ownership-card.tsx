@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Shield, ShieldCheck } from "lucide-react";
+import { Loader2, Shield } from "lucide-react";
 import { DiscordLoginButton } from "@/app/_components/account-menu";
 import { IconChip } from "@/app/_components/ui/badge";
 import { Button } from "@/app/_components/ui/button";
@@ -28,16 +28,8 @@ export interface OwnershipView {
 export function OwnershipCard({ tag, ownership }: { tag: string; ownership: OwnershipView }) {
   const { state, loggedIn } = ownership;
 
-  if (state === "account_owner") {
-    return (
-      <Panel className="!border-grass/60 flex items-center gap-3 p-4 sm:p-5 text-sm font-semibold text-cream/90">
-        <IconChip tone="green">
-          <ShieldCheck />
-        </IconChip>
-        <p>This village is linked to your Discord account. Only you can sync {tag}, from any device.</p>
-      </Panel>
-    );
-  }
+  // Linked to the viewer: the dashboard heading shows a "Linked to you" badge instead
+  if (state === "account_owner") return null;
 
   if (state === "unclaimed") {
     return (

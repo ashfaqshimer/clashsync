@@ -79,6 +79,8 @@ const STATES = [
     init: stub([["/api/village/sync", 403, { success: false, error: "This village is linked to another account. Log in as its owner to sync it." }]]),
     steps: [ownExport, step(`btn("Sync village").click();`)],
   },
+  { page: "home", name: "sync-empty", path: "/", steps: [step(`btn("Sync village").click();`)] },
+  { page: "home", name: "find-tag-empty", path: "/", steps: [step(`document.querySelector("#find-tag").form.requestSubmit();`)] },
   {
     page: "home", name: "find-tag-invalid", path: "/",
     steps: [step(`setVal(document.querySelector("#find-tag"), "hello!");`), step(`document.querySelector("#find-tag").form.requestSubmit();`)],

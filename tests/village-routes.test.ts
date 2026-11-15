@@ -8,9 +8,12 @@ let viewer: { id: string; name: string; image: null } | null = null;
 vi.mock("@/lib/auth", () => ({ getSessionUser: async () => viewer }));
 
 let tokenValid = true;
+let apiProfile: { name: string; townHallLevel: number } | null = null;
 vi.mock("@/lib/clash-api", () => ({
   verifyPlayerToken: async () =>
     tokenValid ? { ok: true } : { ok: false, reason: "invalid", error: "That API token isn't valid." },
+  fetchPlayerProfile: async () =>
+    apiProfile ? { success: true, player: apiProfile } : { success: false, error: "unavailable" },
 }));
 
 const { testDb, resetTestDb, createAccount, villages, upgrades } = await import("./test-db");
@@ -49,6 +52,7 @@ beforeEach(async () => {
   await resetTestDb();
   as(null);
   tokenValid = true;
+  apiProfile = null;
   await createAccount("alice");
   await createAccount("mallory");
 });
@@ -60,6 +64,17 @@ describe("POST /api/village/sync", () => {
     expect(res.status).toBe(200);
     expect(body).toMatchObject({ success: true, playerTag: TAG, claimed: false, totalActiveUpgrades: 2 });
     expect((await village()).ownerId).toBeNull();
+  });
+
+  it("stores the player name from the API, and keeps it when a later lookup fails", async () => {
+    apiProfile = { name: "Chief Ada", townHallLevel: 16 };
+    await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
+    expect(await village()).toMatchObject({ playerName: "Chief Ada", townHallLevel: 16 });
+
+    apiProfile = null;
+    const res = await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
+    expect(res.status).toBe(200);
+    expect(await village()).toMatchObject({ playerName: "Chief Ada", townHallLevel: 16 });
   });
 
   it("claims an unclaimed village for the logged-in account", async () => {
@@ -179,5 +194,30 @@ describe("POST /api/village/claim (API-token takeover)", () => {
     expect(v.ownerId).toBe("alice");
     expect(v.dmAlerts).toBe(true);
     expect(v.discordWebhookUrl).not.toBeNull();
+  });
+});
+
+describe("getOwnedVillages", () => {
+  it("returns the stored name and raw finish times, with builder timers split out", async () => {
+    const { getOwnedVillages } = await import("@/lib/village");
+    apiProfile = { name: "Chief Ada", townHallLevel: 16 };
+    as("alice");
+    const ts = now();
+    await sync(
+      post("/api/village/sync", {
+        rawJson: exportJson(ts, {
+          buildings: [
+            { data: 1000008, lvl: 20, timer: 3600 },
+            { data: 1000008, lvl: 20, timer: 7200, extra: true }, // Goblin: not a builder slot
+            { data: 1000015, lvl: 4, cnt: 3 },
+          ],
+        }),
+      })
+    );
+    const [row] = await getOwnedVillages("alice");
+    expect(row).toMatchObject({ playerTag: TAG, playerName: "Chief Ada", townHallLevel: 16, builderCount: 3 });
+    expect(row.finishTimes.sort()).toEqual([ts + 3600, ts + 7200, ts + 86400]);
+    expect(row.builderFinishTimes).toEqual([ts + 3600]);
+    expect(await getOwnedVillages("mallory")).toEqual([]);
   });
 });

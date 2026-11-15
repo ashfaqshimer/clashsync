@@ -17,6 +17,10 @@ export function FindByTag() {
       className="panel-stone p-4 space-y-2"
       onSubmit={(e) => {
         e.preventDefault();
+        if (!value.trim()) {
+          setError("Type your player tag first. It's under your name on your in-game profile.");
+          return;
+        }
         const tag = normalizeTag(value);
         if (!tag) {
           setError("That isn't a valid player tag. You'll find yours under your name on your in-game profile.");
@@ -51,7 +55,7 @@ export function FindByTag() {
             className="field h-10 pl-8 pr-3 text-sm font-mono"
           />
         </div>
-        <Button type="submit" variant="blue" disabled={!value.trim()}>
+        <Button type="submit" variant="blue">
           <span className="max-sm:sr-only">Open</span>
           <ArrowRight className="w-4 h-4" />
         </Button>

@@ -39,7 +39,8 @@ app/
   api/village/notifications/route.ts  PUT webhook · PATCH {dm} DM alerts · POST test · DELETE webhook (owner only)
   api/auth/[...all]/route.ts    Better Auth handler (Discord OAuth, sessions)
   api/account/after-login/route.ts  Post-login step: the bot adds the user to the ClashSync Discord server (for DMs)
-  villages/                     "My villages" list for the logged-in account (page.tsx loads data; village-list-views.tsx renders it)
+  villages/                     "My villages" list for the logged-in account (page.tsx loads data; village-list-views.tsx states; village-rows.tsx
+                                client rows: name, TH chip, idle/stale badges, needs-attention first)
   _components/account-menu.tsx  Login button / avatar + log out (client, uses lib/auth-client)
   _components/subpage-header.tsx  Header for inner pages (back to home, actions, account menu)
   _components/ui/               Shared design-system components (see Stack → Design system)
@@ -64,6 +65,7 @@ lib/
   ownership.ts     getVillageAccess(): who may edit a village (owner account, or anyone if unclaimed)
   app-url.ts       appUrl(): public base URL (links in messages, auth baseURL)
   village.ts       getVillage(tag) — server data access for the dashboard
+  village-status.ts formatAge() ("3h 12m ago") + villageStatus(): idle builders / stale export / needs attention for list rows. Pure
   boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
   upgrade-label.ts upgradeLabel(): display name + "(Gear-Up)" / "(Goblin/Extra)". The DB stores the plain name
   secrets.ts       sealWebhookUrl / openWebhookUrl: encryption at rest keyed from BETTER_AUTH_SECRET (server only)
@@ -80,6 +82,7 @@ scripts/           screenshots.mjs, setup-qstash-schedule.ts, db-baseline.ts, se
 - **Schema conventions** (header of `lib/db/schema.ts`): game times are `bigint` Unix **seconds**, app events are `timestamptz` (JS `Date`). Our ids are `uuid`, generated in code so a batch can reference them; auth_* ids stay `text` (Better Auth's). Fixed value sets (`category`, `village_type`, `boosts.kind`, `boosts.status`) are `text` with a TS enum and a CHECK constraint built from the constants in `lib/types.ts` / `lib/boosts.ts`, not pg enums. Adding a value means changing the constant and generating a migration. `updated_at` is set automatically (`$onUpdate`), so don't set it by hand. `entity_name` is the plain name; use `upgradeLabel()` for display (dashboard, alerts).
 - **Secrets at rest:** `villages.discord_webhook_url` is encrypted (`lib/secrets.ts`), and Discord OAuth tokens in `auth_account` are encrypted by Better Auth (`encryptOAuthTokens`). Read tokens with `auth.api.getAccessToken`, never straight from the table. Changing `BETTER_AUTH_SECRET` makes saved webhooks unreadable: the sweep skips them, and owners have to save them again.
 - **Identity:** villages are keyed by **player tag** (`player_tag` NOT NULL UNIQUE, stored as `#XXXX`; URLs use the bare slug). Always pass tags through `normalizeTag`. A sync without a valid tag is rejected.
+- **Player name:** the export has no name, so `villages.player_name` / `town_hall_level` come from the Supercell API: looked up during sync (2.5 s timeout, best effort, never overwritten with null) and refreshed by the dashboard's `PlayerProfile` via `after()` when they change. Show `playerName ?? playerTag` (dashboard heading, My villages, tab title).
 - **Accounts vs villages:** people log in with Discord (Better Auth, tables `auth_user/auth_session/auth_account/auth_verification`, mapped via `modelName` in `lib/auth.ts`). `villages` has one row per Clash village; `villages.owner_id` links it to an `auth_user`. Upgrades and boosts point at it via `village_id`. Discord user id = `auth_account.account_id` where `provider_id = 'discord'` (unique per provider).
 - **Ownership (`getVillageAccess`):** claimed village → only the owner account may sync/potion/alerts. Unclaimed → anyone; a **logged-in sync claims it** (no token). The **API token always wins**: `/api/village/claim` moves the village to the caller and clears the previous owner's alerts. Use `accessDeniedMessage()` for 403s.
 - **Dashboard timing:** the server never computes "now". `useNow()` returns `null` during SSR/hydration so markup matches, then ticks every second on the client. Builder totals come from the Builder's Hut entries (`villages.builder_count`, summed over every hut entry because an upgrading hut gets its own entry with no `cnt`). B.O.B. isn't identifiable in the export, so the UI uses `max(builder_count, busy)`, and without a count falls back to "N busy / next free in…". Goblin (`extra`) upgrades don't count as busy; the tile adds "+ Goblin" instead.

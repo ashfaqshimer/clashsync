@@ -35,6 +35,7 @@ export function ExportForm({
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, startTransition] = useTransition();
   const navigated = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // The transition ends when the dashboard has rendered the fresh data
   useEffect(() => {
@@ -64,6 +65,12 @@ export function ExportForm({
 
   const handleSync = async () => {
     setError(null);
+
+    if (!jsonInput.trim()) {
+      setError("Paste your village export into the box first.");
+      textareaRef.current?.focus();
+      return;
+    }
 
     const local = parseVillageExport(jsonInput);
     if (!local.success || !local.playerTag) {
@@ -138,6 +145,7 @@ export function ExportForm({
       </div>
 
       <textarea
+        ref={textareaRef}
         id="village-export"
         rows={6}
         value={jsonInput}
@@ -162,7 +170,7 @@ export function ExportForm({
           )}
         </p>
 
-        <Button size="lg" onClick={handleSync} disabled={!jsonInput.trim() || busy}>
+        <Button size="lg" onClick={handleSync} disabled={busy}>
           {busy ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />

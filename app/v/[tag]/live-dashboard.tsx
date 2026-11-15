@@ -10,6 +10,7 @@ import {
   Hammer,
   PawPrint,
   RefreshCw,
+  ShieldCheck,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import { Hint } from "@/app/_components/ui/hint";
 import { SetupChecklist } from "./setup-checklist";
 import { UpdatePanel } from "./update-panel";
 import { formatDuration } from "@/lib/parser";
+import { formatAge, STALE_AFTER_SECONDS } from "@/lib/village-status";
 import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { AlertsCard } from "./alerts-card";
 import { OwnershipCard, type OwnershipView } from "./ownership-card";
@@ -28,8 +30,6 @@ import { Badge, IconChip, type Tone } from "@/app/_components/ui/badge";
 import { Card, CardHeader, Heading, Well } from "@/app/_components/ui/card";
 import { StatusTile as Tile } from "@/app/_components/ui/status-tile";
 
-/** Exports older than this probably miss upgrades started since. */
-const STALE_AFTER_SECONDS = 12 * 3600;
 
 type GroupKey = "builders" | "lab" | "pets" | "builderBase" | "other";
 
@@ -83,6 +83,7 @@ export function LiveDashboard({
     const key = groupOf(u);
     grouped.set(key, [...(grouped.get(key) ?? []), u]);
   }
+  for (const items of grouped.values()) items.sort((a, b) => a.currentFinishTime - b.currentFinishTime);
 
   const isRunning = (u: VillageUpgrade) => now === null || u.currentFinishTime > now;
   // Goblin builder / goblin researcher slots don't occupy a regular builder or lab
@@ -122,14 +123,22 @@ export function LiveDashboard({
           <Hammer />
         </IconChip>
         <div className="min-w-0 flex-1 space-y-1">
-          <Heading as="h1" size="lg" gold className="truncate">
-            {village.playerTag}
-          </Heading>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+            <Heading as="h1" size="lg" gold className="truncate min-w-0">
+              {village.playerName ?? village.playerTag}
+            </Heading>
+            {ownership.state === "account_owner" && !demo && (
+              <Badge tone="green" icon={<ShieldCheck className="w-3 h-3" />} className="shrink-0">
+                <span title="Linked to your Discord account. Only you can update it, from any device.">
+                  Linked to you
+                </span>
+              </Badge>
+            )}
+          </div>
           {profile}
           <p className="text-sm font-semibold text-cream/90 min-h-5 tabular-nums">
-            {exportAge === null
-              ? " "
-              : `Synced ${exportAge < 60 ? "just now" : `${formatDuration(exportAge)} ago`}`}
+            {village.playerName && <>{village.playerTag} · </>}
+            {exportAge === null ? " " : `Synced ${formatAge(exportAge)}`}
           </p>
         </div>
         {canUpdate && !updateOpen && (
@@ -204,6 +213,25 @@ export function LiveDashboard({
         <SlotTile group="builderBase" busy={bbBusy} now={now} idleText="Nothing upgrading" />
       </div>
 
+      {/* Upgrade lists */}
+      {village.upgrades.length === 0 ? (
+        <Card className="p-8 text-center font-display text-lg text-cream/85">
+          No upgrades were running in your last export.
+        </Card>
+      ) : (
+        // Masonry columns so a short group doesn't leave a gap. Spacing is padding, not
+        // margin: margins get cut off at column breaks and the next card would overlap.
+        <div className="lg:columns-2 gap-4 -mb-4">
+          {(Object.keys(GROUPS) as GroupKey[])
+            .filter((key) => grouped.has(key))
+            .map((key) => (
+              <div key={key} className="break-inside-avoid pb-4">
+                <UpgradeGroup group={key} items={grouped.get(key)!} now={now} />
+              </div>
+            ))}
+        </div>
+      )}
+
       <PotionBar
         village={village}
         now={now}
@@ -214,21 +242,6 @@ export function LiveDashboard({
             : undefined
         }
       />
-
-      {/* Upgrade lists */}
-      {village.upgrades.length === 0 ? (
-        <Card className="p-8 text-center font-display text-lg text-cream/85">
-          No upgrades were running in your last export.
-        </Card>
-      ) : (
-        <div className="grid lg:grid-cols-2 gap-4">
-          {(Object.keys(GROUPS) as GroupKey[])
-            .filter((key) => grouped.has(key))
-            .map((key) => (
-              <UpgradeGroup key={key} group={key} items={grouped.get(key)!} now={now} />
-            ))}
-        </div>
-      )}
 
       {isOwner && !demo && (
         <div id="alerts" className="scroll-mt-20">
@@ -324,7 +337,6 @@ function UpgradeGroup({
                 <div className="text-sm font-bold text-cream truncate">{upgradeLabel(u)}</div>
                 <div className="text-[11px] font-semibold text-faint tabular-nums">
                   Lv {u.currentLevel} → {u.targetLevel}
-                  {now !== null && <> · {formatClock(u.currentFinishTime)}</>}
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -337,6 +349,9 @@ function UpgradeGroup({
                     {remaining === null ? "--" : formatDuration(remaining)}
                   </span>
                 )}
+                <div className="text-[11px] font-semibold text-cream/70 tabular-nums min-h-4">
+                  {now !== null && formatClock(u.currentFinishTime)}
+                </div>
               </div>
             </li>
           );

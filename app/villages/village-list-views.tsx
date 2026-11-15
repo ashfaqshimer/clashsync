@@ -1,20 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, Hammer, Plus } from "lucide-react";
-import { tagToSlug } from "@/lib/tags";
+import { Plus } from "lucide-react";
+import type { OwnedVillage } from "@/lib/village";
 import { DiscordLoginButton } from "@/app/_components/account-menu";
-import { IconChip } from "@/app/_components/ui/badge";
 import { buttonClass } from "@/app/_components/ui/button";
 import { Card } from "@/app/_components/ui/card";
-import { VillageTimes } from "./village-times";
+import { VillageRows } from "./village-rows";
 
 /** Presentational states of the "My villages" list. Data loading stays in page.tsx. */
-
-export interface OwnedVillageRow {
-  playerTag: string | null;
-  activeUpgrades: number;
-  nextFinishTime: number | null;
-  lastExportTimestamp: number | null;
-}
 
 export function LoggedOutView() {
   return (
@@ -43,36 +35,12 @@ export function VillageListView({
   villages,
   showAddLink = true,
 }: {
-  villages: OwnedVillageRow[];
+  villages: OwnedVillage[];
   showAddLink?: boolean;
 }) {
   return (
     <section className="space-y-3">
-      <Card as="ul" className="divide-y-2 divide-black/30 overflow-hidden">
-        {villages.map((v) =>
-          v.playerTag ? (
-            <li key={v.playerTag}>
-              <Link
-                href={`/v/${tagToSlug(v.playerTag)}`}
-                className="group flex items-center gap-3 p-4 transition hover:bg-white/[0.04] focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-sky"
-              >
-                <IconChip>
-                  <Hammer />
-                </IconChip>
-                <div className="flex-1 min-w-0">
-                  <p className="heading-outline is-gold text-lg truncate">{v.playerTag}</p>
-                  <VillageTimes
-                    activeUpgrades={v.activeUpgrades}
-                    nextFinishTime={v.nextFinishTime}
-                    lastExportTimestamp={v.lastExportTimestamp}
-                  />
-                </div>
-                <ArrowRight className="w-5 h-5 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-gold-300" />
-              </Link>
-            </li>
-          ) : null
-        )}
-      </Card>
+      <VillageRows villages={villages} />
       {showAddLink && <AddVillageLink />}
     </section>
   );

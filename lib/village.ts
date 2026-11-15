@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, min, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { boosts, upgrades, villages } from "@/lib/db/schema";
 import type { PotionKind } from "@/lib/boosts";
@@ -20,6 +20,9 @@ export interface VillageUpgrade {
 
 export interface VillageSnapshot {
   playerTag: string;
+  /** In-game name from the Supercell API; null until a lookup succeeds. */
+  playerName: string | null;
+  townHallLevel: number | null;
   lastExportTimestamp: number | null;
   builderCount: number | null;
   isVerified: boolean;
@@ -46,20 +49,46 @@ export interface LoadedVillage {
   ownership: VillageOwnership;
 }
 
+/** One row of "My villages". Finish times are raw so the client can work out what's idle *now*. */
+export interface OwnedVillage {
+  playerTag: string;
+  playerName: string | null;
+  townHallLevel: number | null;
+  builderCount: number | null;
+  lastExportTimestamp: number | null;
+  /** Every upgrade's finish time (Unix seconds). */
+  finishTimes: number[];
+  /** Home builder upgrades only, Goblin excluded (see lib/village-status.ts). */
+  builderFinishTimes: number[];
+}
+
 /** Villages linked to an account, newest sync first. */
-export async function getOwnedVillages(ownerId: string) {
-  return db
+export async function getOwnedVillages(ownerId: string): Promise<OwnedVillage[]> {
+  const rows = await db
     .select({
       playerTag: villages.playerTag,
+      playerName: villages.playerName,
+      townHallLevel: villages.townHallLevel,
+      builderCount: villages.builderCount,
       lastExportTimestamp: villages.lastExportTimestamp,
-      activeUpgrades: count(upgrades.id),
-      nextFinishTime: min(upgrades.currentFinishTime),
+      finishTimes: sql<Array<string | number> | null>`array_agg(${upgrades.currentFinishTime}) filter (where ${upgrades.id} is not null)`,
+      builderFinishTimes: sql<Array<string | number> | null>`array_agg(${upgrades.currentFinishTime}) filter (
+        where ${upgrades.category} = 'BUILDER' and ${upgrades.villageType} = 'HOME' and not ${upgrades.isExtraSlot}
+      )`,
     })
     .from(villages)
     .leftJoin(upgrades, eq(upgrades.villageId, villages.id))
     .where(eq(villages.ownerId, ownerId))
     .groupBy(villages.id)
     .orderBy(sql`${villages.lastExportTimestamp} desc nulls last`);
+
+  // bigint[] comes back as strings from some drivers
+  const nums = (a: Array<string | number> | null) => (a ?? []).map(Number);
+  return rows.map((r) => ({
+    ...r,
+    finishTimes: nums(r.finishTimes),
+    builderFinishTimes: nums(r.builderFinishTimes),
+  }));
 }
 
 /** Loads a village and its current upgrades. `tag` must be normalized ("#XXXX"). */
@@ -88,6 +117,8 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
 
   const village: VillageSnapshot = {
     playerTag: row.playerTag,
+    playerName: row.playerName,
+    townHallLevel: row.townHallLevel,
     lastExportTimestamp: row.lastExportTimestamp,
     builderCount: row.builderCount,
     isVerified: Boolean(row.verifiedAt),
@@ -117,4 +148,14 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
     village,
     ownership: { playerTag: row.playerTag, ownerId: row.ownerId },
   };
+}
+
+/** Just the stored player name (page titles). `tag` must be normalized. */
+export async function getVillageName(tag: string): Promise<string | null> {
+  const [row] = await db
+    .select({ playerName: villages.playerName })
+    .from(villages)
+    .where(eq(villages.playerTag, tag))
+    .limit(1);
+  return row?.playerName ?? null;
 }

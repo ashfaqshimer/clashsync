@@ -20,6 +20,7 @@ Short guide for AI agents (Gemini and others). `CLAUDE.md` is the full guide; wh
 2. `POST /api/village/sync` upserts the village by **player tag** (`normalizeTag`). It then **deletes the village's upgrade rows and inserts the new set** in one `db.batch`. `upgrades` only ever holds the current timers; there is no history and no status column.
 3. Before deleting, it reads which old upgrades were already alerted and carries `notified_at` over to matching new rows (`carryOverNotified`), so nobody is alerted twice.
 4. A logged-in sync of an unclaimed village claims it for that account.
+5. The export has no player name, so the sync also looks up the name and Town Hall level in the Supercell API (2.5 s timeout, best effort; a failure keeps the stored values). The dashboard refreshes them when they change. The UI shows `player_name ?? player_tag`.
 
 ### B. Potions
 - Builder Potion: builders 10× for 1h (up to 9h saved). Research Potion: lab 24× for 1h (up to 23h saved). Only `current_finish_time` changes; `original_finish_time` keeps the export's time.
@@ -36,6 +37,7 @@ Conventions: game times are `bigint` Unix seconds, app events are `timestamptz`.
 - **`auth_user` / `auth_session` / `auth_account` / `auth_verification`**: Better Auth tables (people, not villages). `auth_account` is unique on `(provider_id, account_id)`. The Discord user id is `account_id` where `provider_id = 'discord'`. OAuth tokens are encrypted by Better Auth; read them via `auth.api.getAccessToken`.
 - **`villages`**: one row per Clash village.
   - `id` uuid, `player_tag` text NOT NULL UNIQUE (`#XXXX`), `owner_id` → `auth_user` (null = unclaimed), `verified_at`
+  - `player_name`, `town_hall_level` (Supercell API, nullable)
   - `last_export_timestamp`, `builder_count`, `builder_boost_ends_at`, `lab_boost_ends_at` (Unix seconds)
   - `discord_webhook_url` (**encrypted**, `lib/secrets.ts`; never sent to the client), `dm_alerts`, `alert_lead_minutes` (0–1440), `idle_reminders`, `idle_reminded_at`
 - **`upgrades`**: the village's current timers, replaced on every sync.
