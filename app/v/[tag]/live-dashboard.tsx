@@ -237,6 +237,7 @@ export function LiveDashboard({
           webhookOn={village.webhookAlerts}
           dmOn={village.dmAlerts}
           leadMinutes={village.alertLeadMinutes}
+          idleReminders={village.idleReminders}
           dmAvailable={ownership.dmAvailable}
         />
         </div>

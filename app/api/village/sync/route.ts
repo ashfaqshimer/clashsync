@@ -95,6 +95,8 @@ export async function POST(request: NextRequest) {
             .update(villages)
             .set({
               lastExportTimestamp: exportTimestamp,
+              // New timers, so the "anything idle?" nudge can fire again (lib/notify.ts)
+              idleRemindedAt: null,
               ...(parseResult.builderHutCount
                 ? { builderCount: parseResult.builderHutCount }
                 : {}),

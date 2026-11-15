@@ -31,6 +31,8 @@ export interface VillageSnapshot {
   dmAlerts: boolean;
   /** Minutes before a finish that alerts go out (0 = when done). */
   alertLeadMinutes: number;
+  /** "Anything sitting idle?" nudge an hour after an upgrade finishes with no re-sync. */
+  idleReminders: boolean;
   builderBoostEndsAt: number | null;
   labBoostEndsAt: number | null;
   /** Most recent potion that can still be undone. */
@@ -93,6 +95,7 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
     webhookAlerts: Boolean(row.discordWebhookUrl),
     dmAlerts: row.dmAlerts,
     alertLeadMinutes: row.alertLeadMinutes,
+    idleReminders: row.idleReminders,
     builderBoostEndsAt: row.builderBoostEndsAt,
     labBoostEndsAt: row.labBoostEndsAt,
     undoableBoost: latestBoost

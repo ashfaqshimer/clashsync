@@ -28,6 +28,7 @@ Short guide for AI agents (Gemini and others). `CLAUDE.md` is the full guide; wh
 ### C. Discord Alerts
 - Each village picks a lead time (`alert_lead_minutes`, default 5; 0 = when done).
 - The sweep (`lib/notify.ts`) claims due rows with a single `UPDATE … WHERE notified_at IS NULL RETURNING`, then sends one message per village to the webhook and/or a DM to the owner. On 429/5xx it releases the claim so the next run retries.
+- Idle nudge (`runIdleReminderSweep`, same cron run): one "anything sitting idle?" message when an upgrade finished 1h ago (30-min window) with no re-sync since. `villages.idle_reminded_at` makes it once per sync (sync clears it); `villages.idle_reminders` (default on) is the owner toggle.
 
 ## 4. Database Schema (`lib/db/schema.ts`)
 Conventions: game times are `bigint` Unix seconds, app events are `timestamptz`. Our ids are `uuid` (generated in code); auth ids are `text`. Fixed value sets are `text` + a CHECK constraint (no pg enums). `updated_at` updates automatically.
@@ -36,7 +37,7 @@ Conventions: game times are `bigint` Unix seconds, app events are `timestamptz`.
 - **`villages`**: one row per Clash village.
   - `id` uuid, `player_tag` text NOT NULL UNIQUE (`#XXXX`), `owner_id` → `auth_user` (null = unclaimed), `verified_at`
   - `last_export_timestamp`, `builder_count`, `builder_boost_ends_at`, `lab_boost_ends_at` (Unix seconds)
-  - `discord_webhook_url` (**encrypted**, `lib/secrets.ts`; never sent to the client), `dm_alerts`, `alert_lead_minutes` (0–1440)
+  - `discord_webhook_url` (**encrypted**, `lib/secrets.ts`; never sent to the client), `dm_alerts`, `alert_lead_minutes` (0–1440), `idle_reminders`, `idle_reminded_at`
 - **`upgrades`**: the village's current timers, replaced on every sync.
   - `id` uuid, `village_id` → `villages` (cascade), `data_id`, `entity_name` (plain name; the UI adds "(Gear-Up)" / "(Goblin/Extra)" via `upgradeLabel()`)
   - `category` (`BUILDER | LABORATORY | PET_HOUSE | BUILDER_BASE | OTHER`), `village_type` (`HOME | BUILDER_BASE`)

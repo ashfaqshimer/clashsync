@@ -40,6 +40,7 @@ export function demoVillage(now: number): VillageSnapshot {
     webhookAlerts: false,
     dmAlerts: false,
     alertLeadMinutes: 5,
+    idleReminders: true,
     builderBoostEndsAt: null,
     labBoostEndsAt: null,
     undoableBoost: null,

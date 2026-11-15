@@ -136,6 +136,10 @@ export const villages = pgTable(
     dmAlerts: boolean("dm_alerts").default(false).notNull(), // DM the owner (needs ownerId)
     // Alert this many minutes before an upgrade finishes (0 = when done). See lib/alerts.ts
     alertLeadMinutes: integer("alert_lead_minutes").default(5).notNull(),
+    // "Something may be idle" nudge, an hour after an upgrade finishes with no re-sync (lib/notify.ts)
+    idleReminders: boolean("idle_reminders").default(true).notNull(),
+    // Set when that nudge is claimed; a sync clears it. At most one nudge per sync.
+    idleRemindedAt: timestamp("idle_reminded_at", { withTimezone: true }),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),

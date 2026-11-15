@@ -8,6 +8,8 @@
  * arrives between `lead` and `lead + interval` before the finish, never later.
  */
 
+import type { UpgradeType } from "./types";
+
 /** Must match the QStash schedule in scripts/setup-qstash-schedule.ts. */
 export const SWEEP_INTERVAL_SECONDS = 120;
 
@@ -67,6 +69,49 @@ export function alertMessage(tag: string, items: AlertItem[], now: number, link:
     ? `🔨 Chief, **${items.length} upgrades** are ready!`
     : `⏰ Heads-up, Chief! **${items.length} upgrades** to check:`;
   return `${headline} · ${tag}\n${lines.join("\n")}\n${link}`;
+}
+
+/**
+ * Idle nudge: an upgrade finished this long ago and the player hasn't
+ * re-synced since (a sync replaces every row, so a finished row still being
+ * there means no newer export). The builder or lab that did it may be sitting
+ * idle. At most one nudge per sync (`villages.idle_reminded_at`).
+ */
+export const IDLE_AFTER_SECONDS = 60 * 60;
+/**
+ * Only finishes in [now - IDLE_AFTER - window, now - IDLE_AFTER] trigger a
+ * nudge, so syncing an old export (finishes long past) never sends one.
+ */
+export const IDLE_WINDOW_SECONDS = 30 * 60;
+
+export interface IdleItem {
+  category: UpgradeType;
+  currentFinishTime: number;
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** "your Laboratory and 2 builders". Each finished main-slot upgrade freed one builder. */
+export function freedSummary(items: IdleItem[]): string {
+  const count = (c: UpgradeType) => items.filter((i) => i.category === c).length;
+  const parts = [
+    count("BUILDER") > 0 && plural(count("BUILDER"), "builder"),
+    count("LABORATORY") > 0 && "your Laboratory",
+    count("PET_HOUSE") > 0 && "your Pet House",
+    count("BUILDER_BASE") > 0 && plural(count("BUILDER_BASE"), "Builder Base upgrade"),
+    count("OTHER") > 0 && plural(count("OTHER"), "other upgrade"),
+  ].filter((p): p is string => Boolean(p));
+  if (parts.length <= 1) return parts[0] ?? "an upgrade";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/** Items must be non-empty. Wording stays true however late the reader opens it. */
+export function idleReminderMessage(tag: string, items: IdleItem[], link: string): string {
+  const since = Math.min(...items.map((i) => i.currentFinishTime));
+  return (
+    `💤 Chief, anything sitting idle? ${freedSummary(items)} finished <t:${since}:R> and you haven't synced since. · ${tag}\n` +
+    `Started something new already? Paste a fresh export so ClashSync can track it.\n${link}`
+  );
 }
 
 export interface UpgradeIdentity {

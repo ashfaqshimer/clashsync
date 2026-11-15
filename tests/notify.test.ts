@@ -4,9 +4,9 @@ import { eq } from "drizzle-orm";
 vi.mock("@/lib/db", async () => (await import("./test-db")).dbModule());
 
 const { testDb, resetTestDb, createAccount, villages, upgrades } = await import("./test-db");
-const { runNotificationSweep } = await import("@/lib/notify");
+const { runIdleReminderSweep, runNotificationSweep } = await import("@/lib/notify");
 const { sealWebhookUrl } = await import("@/lib/secrets");
-const { SWEEP_INTERVAL_SECONDS } = await import("@/lib/alerts");
+const { IDLE_AFTER_SECONDS, IDLE_WINDOW_SECONDS, SWEEP_INTERVAL_SECONDS } = await import("@/lib/alerts");
 
 const NOW = 1_800_000_000;
 const WEBHOOK = "https://discord.com/api/webhooks/123456/abcdefghijklmnopqrstuvwxyz";
@@ -160,5 +160,59 @@ describe("runNotificationSweep", () => {
     replies = { webhook: 503, dm: 200 };
     expect(await runNotificationSweep(NOW)).toMatchObject({ sent: 1, retrying: 0 });
     expect(await notified(id)).not.toBeNull();
+  });
+});
+
+describe("runIdleReminderSweep", () => {
+  const idleRemindedAt = async () =>
+    (await testDb.select().from(villages).where(eq(villages.id, VILLAGE_ID)))[0].idleRemindedAt;
+
+  it("nudges once, an hour after an upgrade finished with no re-sync", async () => {
+    await seedVillage();
+    await seedUpgrade(-IDLE_AFTER_SECONDS + 60); // finished 59 min ago
+    expect(await runIdleReminderSweep(NOW)).toMatchObject({ claimed: 0 });
+
+    expect(await runIdleReminderSweep(NOW + 60)).toMatchObject({ claimed: 1, sent: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].content).toContain("1 builder finished");
+    expect(await idleRemindedAt()).not.toBeNull();
+
+    // At most one per sync, even when more upgrades finish later
+    await seedUpgrade(-IDLE_AFTER_SECONDS + 600);
+    expect(await runIdleReminderSweep(NOW + 600)).toMatchObject({ claimed: 0 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("never nudges for finishes long before (an old export synced)", async () => {
+    await seedVillage();
+    await seedUpgrade(-IDLE_AFTER_SECONDS - IDLE_WINDOW_SECONDS - 60);
+    expect(await runIdleReminderSweep(NOW)).toMatchObject({ claimed: 0 });
+  });
+
+  it("ignores the Goblin / extra slot", async () => {
+    await seedVillage();
+    const id = await seedUpgrade(-IDLE_AFTER_SECONDS);
+    await testDb.update(upgrades).set({ isExtraSlot: true }).where(eq(upgrades.id, id));
+    expect(await runIdleReminderSweep(NOW)).toMatchObject({ claimed: 0 });
+  });
+
+  it("respects the off switch and villages with no destination", async () => {
+    await seedVillage({ webhook: false });
+    await seedUpgrade(-IDLE_AFTER_SECONDS);
+    expect(await runIdleReminderSweep(NOW)).toMatchObject({ claimed: 0 });
+
+    await testDb.update(villages).set({ dmAlerts: true, idleReminders: false }).where(eq(villages.id, VILLAGE_ID));
+    expect(await runIdleReminderSweep(NOW)).toMatchObject({ claimed: 0 });
+  });
+
+  it("releases the claim for a retry when nothing got through", async () => {
+    await seedVillage();
+    await seedUpgrade(-IDLE_AFTER_SECONDS);
+    replies = { webhook: 503, dm: 200 };
+    expect(await runIdleReminderSweep(NOW)).toMatchObject({ retrying: 1 });
+    expect(await idleRemindedAt()).toBeNull();
+
+    replies = { webhook: 204, dm: 200 };
+    expect(await runIdleReminderSweep(NOW + SWEEP_INTERVAL_SECONDS)).toMatchObject({ sent: 1 });
   });
 });

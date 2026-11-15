@@ -41,6 +41,7 @@ function base(now: number): VillageSnapshot {
     webhookAlerts: true,
     dmAlerts: true,
     alertLeadMinutes: 5,
+    idleReminders: true,
     builderBoostEndsAt: null,
     labBoostEndsAt: now + 38 * 60,
     undoableBoost: { kind: "RESEARCH_POTION", createdAt: new Date(0).toISOString() },

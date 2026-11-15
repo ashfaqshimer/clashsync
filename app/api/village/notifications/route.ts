@@ -16,7 +16,7 @@ import { getVillageAccess } from "@/lib/ownership";
 import { openWebhookUrl, sealWebhookUrl } from "@/lib/secrets";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 
-type Body = { tag?: unknown; webhookUrl?: unknown; dm?: unknown; leadMinutes?: unknown };
+type Body = { tag?: unknown; webhookUrl?: unknown; dm?: unknown; leadMinutes?: unknown; idleReminders?: unknown };
 
 function fail(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
@@ -83,12 +83,22 @@ export async function PUT(request: NextRequest) {
 
 /**
  * PATCH { tag, leadMinutes } → how early to alert (see lib/alerts.ts).
+ * PATCH { tag, idleReminders } → the "anything sitting idle?" nudge on/off.
  * PATCH { tag, dm } → turn DM alerts on (sends a confirmation DM first) or off.
  */
 export async function PATCH(request: NextRequest) {
   const loaded = await loadOwnedVillage(request);
   if (loaded instanceof NextResponse) return loaded;
   const { village, tag, body } = loaded;
+
+  if (body.idleReminders !== undefined) {
+    if (typeof body.idleReminders !== "boolean") return fail("Invalid request.", 400);
+    await db
+      .update(villages)
+      .set({ idleReminders: body.idleReminders })
+      .where(eq(villages.id, village.id));
+    return NextResponse.json({ success: true });
+  }
 
   if (body.leadMinutes !== undefined) {
     if (!isAlertLead(body.leadMinutes)) return fail("Pick one of the offered alert times.", 400);

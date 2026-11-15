@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Loader2, MessageCircle } from "lucide-react";
+import { BellRing, Loader2, MessageCircle, Moon } from "lucide-react";
 import { ALERT_LEAD_OPTIONS, alertLeadLabel, SWEEP_INTERVAL_SECONDS } from "@/lib/alerts";
 import { IconChip } from "@/app/_components/ui/badge";
 import { Button, buttonClass } from "@/app/_components/ui/button";
 import { Card, Heading, Well } from "@/app/_components/ui/card";
 import { Hint } from "@/app/_components/ui/hint";
 
-type Action = "save" | "test" | "remove" | "dm-on" | "dm-off" | "lead";
+type Action = "save" | "test" | "remove" | "dm-on" | "dm-off" | "lead" | "idle-on" | "idle-off";
 
 const METHOD: Record<Action, string> = {
   save: "PUT",
@@ -18,6 +18,8 @@ const METHOD: Record<Action, string> = {
   "dm-on": "PATCH",
   "dm-off": "PATCH",
   lead: "PATCH",
+  "idle-on": "PATCH",
+  "idle-off": "PATCH",
 };
 
 const SUCCESS: Record<Action, string> = {
@@ -27,6 +29,8 @@ const SUCCESS: Record<Action, string> = {
   "dm-on": "DM alerts are on. Check your Discord DMs for a confirmation.",
   "dm-off": "DM alerts turned off.",
   lead: "Alert time saved.",
+  "idle-on": "Idle reminders are on.",
+  "idle-off": "Idle reminders turned off.",
 };
 
 export function AlertsCard({
@@ -34,12 +38,14 @@ export function AlertsCard({
   webhookOn,
   dmOn,
   leadMinutes,
+  idleReminders,
   dmAvailable,
 }: {
   tag: string;
   webhookOn: boolean;
   dmOn: boolean;
   leadMinutes: number;
+  idleReminders: boolean;
   dmAvailable: boolean;
 }) {
   const router = useRouter();
@@ -61,6 +67,7 @@ export function AlertsCard({
           webhookUrl: action === "save" ? webhookUrl : undefined,
           dm: action === "dm-on" ? true : action === "dm-off" ? false : undefined,
           leadMinutes: action === "lead" ? lead : undefined,
+          idleReminders: action === "idle-on" ? true : action === "idle-off" ? false : undefined,
         }),
       });
       const data = await res.json();
@@ -207,6 +214,30 @@ export function AlertsCard({
           </form>
         )}
       </Well>
+
+      {/* "Anything sitting idle?" nudge, sent to the same destinations */}
+      {anyOn && (
+        <Well className="flex flex-wrap items-center justify-between gap-2 p-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-cream/90">
+            <Moon className={`w-4 h-4 ${idleReminders ? "text-grass" : "text-faint"}`} />
+            {idleReminders ? "Reminding you when something may be idle" : "Remind me when something may be idle"}
+            <Hint label="idle reminders">
+              If an upgrade finished an hour ago and you haven&apos;t pasted a new export since, your builder
+              or lab may be doing nothing. We&apos;ll send one reminder, then wait for your next update.
+            </Hint>
+          </div>
+          <button
+            type="button"
+            onClick={() => call(idleReminders ? "idle-off" : "idle-on")}
+            disabled={busy}
+            className={secondary}
+          >
+            {spinner("idle-on")}
+            {spinner("idle-off")}
+            {idleReminders ? "Turn off" : "Turn on"}
+          </button>
+        </Well>
+      )}
 
       {message && (
         <p role="status" className={`text-sm font-bold ${message.tone === "ok" ? "text-grass" : "text-[#ff8a80]"}`}>

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { alertCutoff, alertMessage, carryOverNotified, isAlertLead, SWEEP_INTERVAL_SECONDS } from "./alerts";
+import {
+  alertCutoff,
+  alertMessage,
+  carryOverNotified,
+  freedSummary,
+  idleReminderMessage,
+  isAlertLead,
+  SWEEP_INTERVAL_SECONDS,
+} from "./alerts";
 
 const NOW = 1_750_000_000;
 const LINK = "https://example.test/v/PY";
@@ -89,5 +97,37 @@ describe("carryOverNotified", () => {
 
   it("matches one-to-one", () => {
     expect(carryOverNotified([{ ...wall, notifiedAt: at }], [wall, wall])).toEqual([at, null]);
+  });
+});
+
+describe("freedSummary", () => {
+  it("counts one builder per finished builder upgrade and names single buildings", () => {
+    expect(freedSummary([{ category: "LABORATORY", currentFinishTime: 1 }])).toBe("your Laboratory");
+    expect(
+      freedSummary([
+        { category: "BUILDER", currentFinishTime: 1 },
+        { category: "BUILDER", currentFinishTime: 2 },
+        { category: "LABORATORY", currentFinishTime: 3 },
+        { category: "PET_HOUSE", currentFinishTime: 4 },
+      ])
+    ).toBe("2 builders, your Laboratory and your Pet House");
+    expect(freedSummary([{ category: "BUILDER_BASE", currentFinishTime: 1 }])).toBe("1 Builder Base upgrade");
+  });
+});
+
+describe("idleReminderMessage", () => {
+  it("uses the earliest finish as a live Discord timestamp and asks for a fresh export", () => {
+    const msg = idleReminderMessage(
+      "#PYL",
+      [
+        { category: "BUILDER", currentFinishTime: 2000 },
+        { category: "LABORATORY", currentFinishTime: 1000 },
+      ],
+      "https://example.com/v/PYL"
+    );
+    expect(msg).toContain("1 builder and your Laboratory finished <t:1000:R>");
+    expect(msg).toContain("#PYL");
+    expect(msg).toContain("fresh export");
+    expect(msg.endsWith("https://example.com/v/PYL")).toBe(true);
   });
 });
