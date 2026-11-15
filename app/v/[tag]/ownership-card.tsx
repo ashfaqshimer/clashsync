@@ -45,7 +45,7 @@ export function OwnershipCard({ tag, ownership }: { tag: string; ownership: Owne
           <>
             Sync it while you&apos;re logged in and it&apos;s linked to your account, so nobody else
             can overwrite your timers.{" "}
-            <Link href="/" className="font-extrabold text-sky underline decoration-2 underline-offset-2 hover:text-cream">
+            <Link href="/#sync" className="font-extrabold text-sky underline decoration-2 underline-offset-2 hover:text-cream">
               Sync now
             </Link>
           </>

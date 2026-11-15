@@ -39,7 +39,13 @@ export function NoVillagesView() {
   );
 }
 
-export function VillageListView({ villages }: { villages: OwnedVillageRow[] }) {
+export function VillageListView({
+  villages,
+  showAddLink = true,
+}: {
+  villages: OwnedVillageRow[];
+  showAddLink?: boolean;
+}) {
   return (
     <section className="space-y-3">
       <Card as="ul" className="divide-y-2 divide-black/30 overflow-hidden">
@@ -67,14 +73,14 @@ export function VillageListView({ villages }: { villages: OwnedVillageRow[] }) {
           ) : null
         )}
       </Card>
-      <AddVillageLink />
+      {showAddLink && <AddVillageLink />}
     </section>
   );
 }
 
 function AddVillageLink() {
   return (
-    <Link href="/" className={buttonClass()}>
+    <Link href="/#sync" className={buttonClass()}>
       <Plus className="w-4 h-4" />
       Sync a village
     </Link>

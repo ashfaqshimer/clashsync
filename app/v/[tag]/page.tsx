@@ -11,13 +11,14 @@ import { Card, Heading } from "@/app/_components/ui/card";
 import type { OwnershipState } from "./ownership-card";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 import { LiveDashboard } from "./live-dashboard";
+import { SyncedBanner, type JustSynced } from "./synced-banner";
 
-export default function VillagePage({ params }: PageProps<"/v/[tag]">) {
+export default function VillagePage({ params, searchParams }: PageProps<"/v/[tag]">) {
   return (
     <>
       <SubpageHeader
         actions={
-          <Link href="/" className={buttonClass({ size: "sm" })}>
+          <Link href="/#sync" className={buttonClass({ size: "sm" })}>
             <RefreshCw className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Re-sync village</span>
             <span className="sm:hidden">Re-sync</span>
@@ -27,8 +28,8 @@ export default function VillagePage({ params }: PageProps<"/v/[tag]">) {
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <Suspense fallback={<DashboardSkeleton />}>
-          {params.then(({ tag }) => (
-            <Village slug={tag} />
+          {Promise.all([params, searchParams]).then(([{ tag }, query]) => (
+            <Village slug={tag} justSynced={syncedFrom(query)} />
           ))}
         </Suspense>
       </main>
@@ -36,7 +37,14 @@ export default function VillagePage({ params }: PageProps<"/v/[tag]">) {
   );
 }
 
-async function Village({ slug }: { slug: string }) {
+/** `?synced=N[&linked=1]` is added by the home page right after a sync. */
+function syncedFrom(query: Record<string, string | string[] | undefined>): JustSynced | null {
+  const n = Number(query.synced);
+  if (typeof query.synced !== "string" || !Number.isInteger(n) || n < 0) return null;
+  return { upgrades: n, linked: query.linked === "1" };
+}
+
+async function Village({ slug, justSynced }: { slug: string; justSynced: JustSynced | null }) {
   const tag = normalizeTag(slug);
   if (!tag) notFound();
 
@@ -54,7 +62,7 @@ async function Village({ slug }: { slug: string }) {
         <p className="text-sm font-semibold text-cream/90 max-w-md mx-auto">
           Paste your village export on the home page and your upgrades will show up here.
         </p>
-        <Link href="/" className={buttonClass({ size: "lg" })}>
+        <Link href="/#sync" className={buttonClass({ size: "lg" })}>
           Sync my village
         </Link>
       </Card>
@@ -70,12 +78,15 @@ async function Village({ slug }: { slug: string }) {
       : "unclaimed";
 
   return (
-    <LiveDashboard
-      village={village}
-      isOwner={access.isOwner}
-      canEdit={access.canEdit}
-      ownership={{ state, loggedIn: access.viewer !== null, dmAvailable: isDmConfigured() }}
-    />
+    <div className="space-y-6">
+      {justSynced && <SyncedBanner {...justSynced} />}
+      <LiveDashboard
+        village={village}
+        isOwner={access.isOwner}
+        canEdit={access.canEdit}
+        ownership={{ state, loggedIn: access.viewer !== null, dmAvailable: isDmConfigured() }}
+      />
+    </div>
   );
 }
 

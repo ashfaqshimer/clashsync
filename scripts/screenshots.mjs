@@ -55,59 +55,37 @@ const helpers = `
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));`;
 const step = (js) => helpers + js;
 
-// The sample export with its tag swapped, so it's treated as a real (savable) village
-const ownExport = step(`btn("Load Sample").click(); await pause(300);
-  const ta = document.querySelector("textarea");
-  setVal(ta, ta.value.replace(/"tag"\\s*:\\s*"#[^"]+"/, '"tag": "#2PP0JQ9V"'));`);
-const lookup = (tag) => [
-  step(`btn("Player Tag").click();`),
-  step(`setVal(document.querySelector("input[type=text]"), ${JSON.stringify(tag)});`),
-  step(`btn("Lookup Tag").click();`),
-];
-
-const exportedAt = Math.floor(Date.now() / 1000) - 3 * 3600;
-const upgrades = [
-  { id: "a", name: "Archer Tower", category: "BUILDER", currentLevel: 20, targetLevel: 21, formattedRemaining: "1h 12m", formattedFinishTime: "Today 3:40 PM", isGoblinOrHelper: false },
-  { id: "b", name: "Electro Dragon", category: "LABORATORY", currentLevel: 5, targetLevel: 6, formattedRemaining: "1d 4h 18m", formattedFinishTime: "Sat 9:12 AM", isGoblinOrHelper: false },
-  { id: "c", name: "Unicorn", category: "PET_HOUSE", currentLevel: 7, targetLevel: 8, formattedRemaining: "2d 11h", formattedFinishTime: "Sun 1:05 PM", isGoblinOrHelper: false },
-  { id: "d", name: "Cannon", category: "BUILDER", currentLevel: 19, targetLevel: 20, formattedRemaining: "6h 01m", formattedFinishTime: "Today 8:29 PM", isGoblinOrHelper: true },
-  { id: "e", name: "Mega Tesla", category: "BUILDER_BASE", currentLevel: 8, targetLevel: 9, formattedRemaining: "3h 07m", formattedFinishTime: "Today 5:35 PM", isGoblinOrHelper: false },
-];
-const profile = { name: "Chief Ada", tag: "#2PP0JQ9V", townHallLevel: 15, trophies: 4821, clan: { name: "Night Owls", badgeUrls: {} } };
+// A small but real-looking export (the sample tag is preview-only, so use a savable one)
+const exportJson = JSON.stringify({
+  tag: "#2PP0JQ9V",
+  timestamp: Math.floor(Date.now() / 1000) - 120,
+  buildings: [{ data: 1000000, lvl: 14, cnt: 4 }, { data: 1000003, lvl: 17, timer: 156538 }],
+});
+const ownExport = step(`setVal(document.querySelector("textarea"), ${JSON.stringify(exportJson)});`);
+const openDetails = step(`document.querySelectorAll("details").forEach((d, i) => { if (i < 2) d.open = true; });`);
 
 const STATES = [
-  // Home
-  { page: "home", name: "empty", path: "/" },
+  // Home (logged out: hero, how it works, paste panel, features, FAQ)
+  { page: "home", name: "landing", path: "/" },
+  { page: "home", name: "guide-and-faq-open", path: "/", steps: [openDetails] },
   { page: "home", name: "clipboard-denied", path: "/", steps: [step(`btn("Paste").click();`)] },
-  { page: "home", name: "sample-preview", path: "/", steps: [step(`btn("Load Sample").click();`), step(`btn("Sync Village").click();`)] },
-  { page: "home", name: "syncing", path: "/", init: stub([["/api/village/sync", 0, "hang"]]), steps: [ownExport, step(`btn("Sync Village").click();`)] },
   {
-    page: "home", name: "synced", path: "/",
-    init: stub([["/api/village/sync", 200, { success: true, totalActiveUpgrades: 9, playerTag: "#2PP0JQ9V", claimed: true, dashboardPath: "/v/2PP0JQ9V" }]]),
-    steps: [ownExport, step(`btn("Sync Village").click();`)],
+    page: "home", name: "not-an-export", path: "/",
+    steps: [step(`setVal(document.querySelector("textarea"), "#2PP0JQ9V");`), step(`btn("Sync village").click();`)],
   },
+  { page: "home", name: "syncing", path: "/", init: stub([["/api/village/sync", 0, "hang"]]), steps: [ownExport, step(`btn("Sync village").click();`)] },
   {
     page: "home", name: "sync-error", path: "/",
     init: stub([["/api/village/sync", 403, { success: false, error: "This village is linked to another account. Log in as its owner to sync it." }]]),
-    steps: [ownExport, step(`btn("Sync Village").click();`)],
+    steps: [ownExport, step(`btn("Sync village").click();`)],
   },
   {
-    page: "home", name: "tag-found", path: "/",
-    init: stub([
-      ["/api/player/", 200, { success: true, player: profile }],
-      ["/api/village/upgrades", 200, { success: true, playerTag: "#2PP0JQ9V", lastExportTimestamp: exportedAt, totalActiveUpgrades: upgrades.length, upgrades }],
-    ]),
-    steps: lookup("2PP0JQ9V"),
+    page: "home", name: "find-tag-invalid", path: "/",
+    steps: [step(`setVal(document.querySelector("#find-tag"), "hello!");`), step(`document.querySelector("#find-tag").form.requestSubmit();`)],
   },
-  {
-    page: "home", name: "tag-not-tracked", path: "/",
-    init: stub([
-      ["/api/player/", 404, { success: false, error: "We couldn't find a player with that tag. Check it and try again." }],
-      ["/api/village/upgrades", 404, { success: false, error: "Not found" }],
-    ]),
-    steps: lookup("9QQ2LL8Y"),
-  },
-  { page: "home", name: "tag-searching", path: "/", init: stub([["/api/player/", 0, "hang"]]), steps: lookup("2PP0JQ9V") },
+
+  // Public demo dashboard
+  { page: "demo", name: "dashboard", path: "/demo" },
 
   // Dashboard (fixtures) + interactions on the owner section
   { page: "dashboard", name: "states", path: "/dev/dashboard" },
@@ -120,7 +98,7 @@ const STATES = [
     steps: [step(`btn("Send test").click();`), step(`btn("Change webhook").click();`), step(`btn("I used a Builder Potion").click();`)],
   },
 
-  // My villages (fixtures) + the real logged-out page
+  // My villages + home welcome-back (fixtures) + the real logged-out page
   { page: "villages", name: "states", path: "/dev/villages" },
   { page: "villages", name: "logged-out", path: "/villages" },
 

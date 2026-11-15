@@ -19,18 +19,18 @@ const body = Nunito({
 });
 
 const description =
-  "Live-sync active builder, laboratory, and pet house queues for Clash of Clans. Track countdowns, pop builder potions, and receive Discord notifications.";
+  "Paste your Clash of Clans village export to see every builder, lab and pet upgrade timer live, log potions, and get a Discord alert before each one finishes.";
 
 export const metadata: Metadata = {
   // Absolute base so the share image (app/opengraph-image.png) gets a full URL
   metadataBase: new URL(appUrl()),
-  title: "ClashSync | Clash of Clans Village Queue & Timer Sync",
+  title: "ClashSync: Clash of Clans upgrade timers & Discord alerts",
   description,
   applicationName: "ClashSync",
   openGraph: {
     type: "website",
     siteName: "ClashSync",
-    title: "ClashSync | Clash of Clans Village Queue & Timer Sync",
+    title: "ClashSync: Clash of Clans upgrade timers & Discord alerts",
     description,
   },
   twitter: { card: "summary_large_image" },
@@ -47,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark h-full antialiased ${display.variable} ${body.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`dark h-full antialiased ${display.variable} ${body.variable}`}>
       <body className="min-h-full text-foreground flex flex-col font-sans selection:bg-gold-400/40 selection:text-cream">
         {children}
       </body>

@@ -38,10 +38,13 @@ export function PotionBar({
   village,
   now,
   canEdit,
+  lockedNote = "Only the verified owner can log potions for this village.",
 }: {
   village: VillageSnapshot;
   now: number | null;
   canEdit: boolean;
+  /** Shown under the buttons when they're locked (`canEdit` false). */
+  lockedNote?: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<PotionKind | "UNDO" | null>(null);
@@ -145,7 +148,7 @@ export function PotionBar({
       </div>
 
       {!canEdit && (
-        <p className="text-xs font-semibold text-faint">Only the verified owner can log potions for this village.</p>
+        <p className="text-xs font-semibold text-faint">{lockedNote}</p>
       )}
       {message && (
         <p role="status" className={`text-sm font-bold ${message.tone === "ok" ? "text-grass" : "text-[#ff8a80]"}`}>

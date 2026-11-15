@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { LiveDashboard } from "@/app/v/[tag]/live-dashboard";
 import { useNow } from "@/app/v/[tag]/use-now";
+import { SyncedBanner } from "@/app/v/[tag]/synced-banner";
 
 /** Every dashboard state, rendered by the real components with fake data (times relative to the client clock). */
 
@@ -71,6 +72,10 @@ export function DashboardFixtures() {
 
   return (
     <div className="space-y-16">
+      <Section title="Just synced (banner after the home page redirect)">
+        <SyncedBanner upgrades={9} linked />
+      </Section>
+
       <Section title="Owner · builders idle, lab boosted, alerts on, undo available, one done">
         <LiveDashboard
           village={b}

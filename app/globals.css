@@ -108,6 +108,16 @@
   }
 }
 
+/* In-page links (#sync, #faq…) land below the sticky header */
+html {
+  scroll-padding-top: 5rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   color: var(--foreground);
   /* Night sky: a soft glow above the village, falling off to deep blue */

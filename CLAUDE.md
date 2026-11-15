@@ -12,7 +12,7 @@ Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn
 
 - `pnpm dev` — dev server (Turbopack) on http://localhost:3000
 - `pnpm build` / `pnpm start`. **Stop `pnpm dev` before building**: both use `.next/`, and a build during dev leaves the dev server serving a stale `globals.css` (UI suddenly looks unstyled; fix = stop dev, delete `.next`, restart).
-- `pnpm screenshots` — with `pnpm dev` running: headless Chrome captures every UI state at 1280px and 375px into `screenshots/` (gitignored), and fails if a page scrolls sideways or throws. Server calls are stubbed in-page (no DB writes). Dashboard / My villages / design-system states come from dev-only fixture pages under `app/dev/` (`/dev/dashboard`, `/dev/villages`, `/dev/styleguide`; 404 in production). Set `CHROME_PATH` if Chrome isn't found. Add a state to `scripts/screenshots.mjs` when you add UI.
+- `pnpm screenshots` — with `pnpm dev` running: headless Chrome captures every UI state at 1280px and 375px into `screenshots/` (gitignored), and fails if a page scrolls sideways or throws. Server calls are stubbed in-page (no DB writes). Dashboard / My villages / home welcome-back / design-system states come from dev-only fixture pages under `app/dev/` (`/dev/dashboard`, `/dev/villages`, `/dev/styleguide`; 404 in production). Set `CHROME_PATH` if Chrome isn't found. Add a state to `scripts/screenshots.mjs` when you add UI.
 - `pnpm lint` — ESLint 9 flat config (`eslint.config.mjs`)
 - `pnpm test` / `pnpm test:watch` — Vitest (`vitest.config.mts`, `@/` alias set up). Unit tests sit next to the code as `*.test.ts` (pure modules). Integration tests in `tests/` run route handlers and the alert sweep against in-memory Postgres (PGlite, `tests/test-db.ts`) built from the committed migrations, with `@/lib/db`, `@/lib/auth` and Discord `fetch` mocked.
 - Schema changes: edit `lib/db/schema.ts` → `pnpm db:generate --name <change>` → review the SQL in `drizzle/` → `pnpm db:migrate`. Commit the `drizzle/` folder. Don't use `drizzle-kit push` any more (it bypasses the history). Renames make drizzle-kit ask questions, which needs a real terminal (run it yourself, or hand-write a `--custom` migration and rebuild its snapshot).
@@ -30,8 +30,10 @@ Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn
 
 ```
 app/
-  page.tsx                      "use client" home page: state + handlers for the JSON paste tab, tag lookup tab and results
-  _home/                        Presentational pieces of the home page (export-tab, tag-lookup-tab, notices, upgrade-results, site-header)
+  page.tsx                      Home (server): hero or "welcome back" list (behind <Suspense>), how it works, paste panel, features, FAQ
+  _home/                        Home sections: hero(+preview), how-it-works, sync-panel (client: parse → POST sync → redirect to dashboard
+                                with ?synced=N), find-by-tag, features, faq, welcome-back, site-header (header + footer w/ Supercell disclaimer)
+  demo/                         Public read-only demo dashboard (LiveDashboard with demo prop, data from lib/demo-village.ts)
   api/village/sync/route.ts     POST {rawJson, playerTag?} → parse, upsert user by tag, CANCEL old ACTIVE upgrades, insert new (one db.batch)
   api/village/upgrades/route.ts GET ?tag= → ACTIVE upgrades for that tag, remaining time recomputed from now
   api/player/[tag]/route.ts     GET → official Supercell API profile (lib/clash-api.ts)

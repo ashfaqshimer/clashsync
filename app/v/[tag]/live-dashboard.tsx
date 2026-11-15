@@ -55,11 +55,14 @@ export function LiveDashboard({
   isOwner,
   canEdit,
   ownership,
+  demo = false,
 }: {
   village: VillageSnapshot;
   isOwner: boolean;
   canEdit: boolean;
   ownership: OwnershipView;
+  /** Public demo (/demo): read-only, no alerts or ownership cards. */
+  demo?: boolean;
 }) {
   const now = useNow();
 
@@ -115,7 +118,7 @@ export function LiveDashboard({
           <div className="flex-1 self-center">
             Your export is {formatDuration(exportAge)} old, so upgrades you&apos;ve started since
             won&apos;t show here.{" "}
-            <Link href="/" className="font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream">
+            <Link href="/#sync" className="font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream">
               Re-sync for accuracy
             </Link>
           </div>
@@ -147,7 +150,16 @@ export function LiveDashboard({
         <SlotTile group="builderBase" busy={bbBusy} now={now} idleText="Nothing upgrading" />
       </div>
 
-      <PotionBar village={village} now={now} canEdit={canEdit} />
+      <PotionBar
+        village={village}
+        now={now}
+        canEdit={canEdit}
+        lockedNote={
+          demo
+            ? "On your own dashboard, tap a potion after you drink it in the game and every affected timer moves."
+            : undefined
+        }
+      />
 
       {/* Upgrade lists */}
       {village.upgrades.length === 0 ? (
@@ -164,7 +176,7 @@ export function LiveDashboard({
         </div>
       )}
 
-      {isOwner && (
+      {isOwner && !demo && (
         <AlertsCard
           tag={village.playerTag}
           webhookOn={village.webhookAlerts}
@@ -174,7 +186,7 @@ export function LiveDashboard({
         />
       )}
 
-      <OwnershipCard tag={village.playerTag} ownership={ownership} />
+      {!demo && <OwnershipCard tag={village.playerTag} ownership={ownership} />}
     </div>
   );
 }
