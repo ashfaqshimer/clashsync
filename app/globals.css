@@ -119,13 +119,14 @@ html {
 }
 
 /*
- * Night sky behind every page, in two layers under the content (z-index -1
+ * Dusk sky behind every page, in two layers under the content (z-index -1
  * inside body's stacking context):
- *  - ::before  fixed sky: glow, faint stars (public/sky/stars.svg) fading out
- *              by mid-screen. A fixed layer instead of background-attachment:
+ *  - ::before  fixed sky: a moon top-right, a few early stars
+ *              (public/sky/stars.svg), deep blue overhead warming to a faint
+ *              sunset glow at the bottom of the screen. A fixed layer instead of background-attachment:
  *              fixed, which iOS ignores and makes Android scrolling heavier.
  *  - ::after   village skyline (public/sky/skyline.svg) at the very end of the
- *              page, with a faint horizon glow; body's bottom padding keeps a
+ *              page, in front of a warm sunset band; body's bottom padding keeps a
  *              strip of it visible below the last panel.
  */
 body {
@@ -136,19 +137,23 @@ body {
   padding-bottom: clamp(3rem, 7vw, 6rem);
 }
 body::before {
+  --moon-r: clamp(0.8rem, 1.6vw, 1.15rem);
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(120% 60% at 50% -10%, rgb(76 120 190 / 0.28), transparent 60%),
-    radial-gradient(80% 40% at 100% 0%, rgb(140 80 200 / 0.12), transparent 70%),
+    /* moon: disc + halo */
+    radial-gradient(circle at calc(100% - clamp(2.25rem, 6vw, 5rem)) clamp(5.25rem, 7vw, 6rem), #fdf0cf 0 var(--moon-r), rgb(253 240 207 / 0.16) calc(var(--moon-r) + 1.5px), rgb(253 240 207 / 0.05) calc(var(--moon-r) * 4), transparent calc(var(--moon-r) * 8)),
+    radial-gradient(120% 55% at 50% -10%, rgb(76 120 190 / 0.24), transparent 60%),
     url("/sky/stars.svg"),
-    linear-gradient(180deg, var(--night-900) 0%, var(--night-950) 70%);
-  background-repeat: no-repeat, no-repeat, repeat-x, no-repeat;
-  background-position: center, center, center top, center;
-  background-size: auto, auto, 1600px auto, auto;
+    /* sunset warming the bottom of the screen */
+    radial-gradient(130% 45% at 50% 110%, rgb(255 138 76 / 0.16), rgb(190 84 140 / 0.08) 45%, transparent 75%),
+    linear-gradient(180deg, var(--night-900) 0%, #141738 60%, #1d1a3c 100%);
+  background-repeat: no-repeat, no-repeat, repeat-x, no-repeat, no-repeat;
+  background-position: center, center, center top, center, center;
+  background-size: auto, auto, 1600px auto, auto, auto;
 }
 body::after {
   content: "";
@@ -159,7 +164,7 @@ body::after {
   pointer-events: none;
   background-image:
     url("/sky/skyline.svg"),
-    radial-gradient(70% 90% at 50% 100%, rgb(76 120 190 / 0.16), transparent 70%);
+    radial-gradient(75% 100% at 50% 100%, rgb(255 150 70 / 0.38), rgb(214 92 120 / 0.16) 45%, transparent 75%);
   background-repeat: repeat-x, no-repeat;
   background-position: center bottom, center bottom;
   background-size: auto 100%, 100% 100%;
