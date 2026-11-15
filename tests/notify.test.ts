@@ -5,10 +5,12 @@ vi.mock("@/lib/db", async () => (await import("./test-db")).dbModule());
 
 const { testDb, resetTestDb, createAccount, villages, upgrades } = await import("./test-db");
 const { runNotificationSweep } = await import("@/lib/notify");
+const { sealWebhookUrl } = await import("@/lib/secrets");
 const { SWEEP_INTERVAL_SECONDS } = await import("@/lib/alerts");
 
 const NOW = 1_800_000_000;
 const WEBHOOK = "https://discord.com/api/webhooks/123456/abcdefghijklmnopqrstuvwxyz";
+const VILLAGE_ID = crypto.randomUUID();
 
 /** Discord API stand-in: records calls, answers with the given status per kind. */
 let replies: { webhook: number; dm: number };
@@ -40,27 +42,27 @@ afterEach(() => {
 async function seedVillage(opts: { lead?: number; webhook?: boolean; dm?: boolean } = {}) {
   await createAccount("alice", "discord-alice");
   await testDb.insert(villages).values({
-    id: "v1",
+    id: VILLAGE_ID,
     playerTag: "#PYL",
     ownerId: "alice",
     alertLeadMinutes: opts.lead ?? 5,
-    discordWebhookUrl: opts.webhook === false ? null : WEBHOOK,
+    discordWebhookUrl: opts.webhook === false ? null : await sealWebhookUrl(WEBHOOK),
     dmAlerts: opts.dm ?? false,
   });
 }
 
 let seq = 0;
-async function seedUpgrade(finishIn: number, name = `Upgrade ${++seq}`) {
-  const id = `u${++seq}`;
+async function seedUpgrade(finishIn: number, name = `Upgrade ${++seq}`, flags: { isGearUp?: boolean } = {}) {
+  const id = crypto.randomUUID();
   await testDb.insert(upgrades).values({
     id,
-    villageId: "v1",
+    villageId: VILLAGE_ID,
     dataId: 1000008,
     entityName: name,
     category: "BUILDER",
     currentLevel: 1,
     targetLevel: 2,
-    remainingSecondsAtExport: 100,
+    ...flags,
     originalFinishTime: NOW + finishIn,
     currentFinishTime: NOW + finishIn,
   });
@@ -117,6 +119,22 @@ describe("runNotificationSweep", () => {
     expect(await runNotificationSweep(NOW)).toMatchObject({ claimed: 2, sent: 2 });
     expect(calls.map((c) => c.kind).sort()).toEqual(["dm", "webhook"]);
     expect(calls[0].content).toContain("**2 upgrades**");
+  });
+
+  it("decrypts the stored webhook and labels gear-ups in the message", async () => {
+    await seedVillage();
+    await seedUpgrade(60, "Archer Tower", { isGearUp: true });
+    await runNotificationSweep(NOW);
+    expect(calls).toHaveLength(1); // reached the real webhook URL
+    expect(calls[0].content).toContain("**Archer Tower (Gear-Up) Level 2**");
+  });
+
+  it("treats a webhook it can't decrypt as no destination", async () => {
+    await seedVillage();
+    await testDb.update(villages).set({ discordWebhookUrl: "not-encrypted" }).where(eq(villages.id, VILLAGE_ID));
+    await seedUpgrade(60);
+    expect(await runNotificationSweep(NOW)).toMatchObject({ skippedNoDestination: 1 });
+    expect(calls).toHaveLength(0);
   });
 
   it("skips villages with no alert destination", async () => {

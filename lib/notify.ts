@@ -5,6 +5,8 @@ import { appUrl } from "@/lib/app-url";
 import { alertMessage, SWEEP_INTERVAL_SECONDS } from "@/lib/alerts";
 import { sendDiscordDm, sendDiscordMessage } from "@/lib/discord";
 import { tagToSlug } from "@/lib/tags";
+import { openWebhookUrl } from "@/lib/secrets";
+import { upgradeLabel } from "@/lib/upgrade-label";
 
 /** Finished longer ago than this (cron gap, old export re-synced) → don't announce. */
 const STALE_AFTER_SECONDS = 30 * 60;
@@ -13,6 +15,8 @@ interface Finished {
   id: string;
   villageId: string;
   entityName: string;
+  isGearUp: boolean;
+  isExtraSlot: boolean;
   targetLevel: number;
   currentFinishTime: number;
 }
@@ -44,7 +48,6 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
     .where(
       and(
         eq(upgrades.villageId, villages.id),
-        eq(upgrades.status, "ACTIVE"),
         isNull(upgrades.notifiedAt),
         lte(upgrades.currentFinishTime, cutoff)
       )
@@ -53,6 +56,8 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
       id: upgrades.id,
       villageId: upgrades.villageId,
       entityName: upgrades.entityName,
+      isGearUp: upgrades.isGearUp,
+      isExtraSlot: upgrades.isExtraSlot,
       targetLevel: upgrades.targetLevel,
       currentFinishTime: upgrades.currentFinishTime,
     });
@@ -95,12 +100,17 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
     [...byVillage.entries()].map(async ([villageId, items]) => {
       const recipient = recipientById.get(villageId);
       const dmTo = recipient?.dmAlerts ? recipient.discordId : null;
-      if (!recipient?.playerTag || (!recipient.webhook && !dmTo)) {
+      // Stored encrypted; unreadable (secret rotated) counts as no webhook
+      const webhook = recipient?.webhook ? await openWebhookUrl(recipient.webhook) : null;
+      if (recipient?.webhook && !webhook) console.warn(`[notify] ${recipient.playerTag}: webhook can't be decrypted`);
+      if (!recipient || (!webhook && !dmTo)) {
         summary.skippedNoDestination += items.length;
         return;
       }
 
-      const sorted = [...items].sort((a, b) => a.currentFinishTime - b.currentFinishTime);
+      const sorted = [...items]
+        .sort((a, b) => a.currentFinishTime - b.currentFinishTime)
+        .map((u) => ({ ...u, entityName: upgradeLabel({ ...u, name: u.entityName }) }));
       const content = alertMessage(
         recipient.playerTag,
         sorted,
@@ -108,7 +118,7 @@ export async function runNotificationSweep(now = Math.floor(Date.now() / 1000)):
         `${appUrl()}/v/${tagToSlug(recipient.playerTag)}`
       );
       const results = await Promise.all([
-        ...(recipient.webhook ? [sendDiscordMessage(recipient.webhook, content)] : []),
+        ...(webhook ? [sendDiscordMessage(webhook, content)] : []),
         ...(dmTo ? [sendDiscordDm(dmTo, content)] : []),
       ]);
 

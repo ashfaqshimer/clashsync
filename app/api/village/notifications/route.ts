@@ -13,6 +13,7 @@ import {
 import { appUrl } from "@/lib/app-url";
 import { isAlertLead } from "@/lib/alerts";
 import { getVillageAccess } from "@/lib/ownership";
+import { openWebhookUrl, sealWebhookUrl } from "@/lib/secrets";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 
 type Body = { tag?: unknown; webhookUrl?: unknown; dm?: unknown; leadMinutes?: unknown };
@@ -75,7 +76,7 @@ export async function PUT(request: NextRequest) {
 
   await db
     .update(villages)
-    .set({ discordWebhookUrl: webhookUrl, updatedAt: new Date() })
+    .set({ discordWebhookUrl: await sealWebhookUrl(webhookUrl) })
     .where(eq(villages.id, village.id));
   return NextResponse.json({ success: true });
 }
@@ -93,7 +94,7 @@ export async function PATCH(request: NextRequest) {
     if (!isAlertLead(body.leadMinutes)) return fail("Pick one of the offered alert times.", 400);
     await db
       .update(villages)
-      .set({ alertLeadMinutes: body.leadMinutes, updatedAt: new Date() })
+      .set({ alertLeadMinutes: body.leadMinutes })
       .where(eq(villages.id, village.id));
     return NextResponse.json({ success: true });
   }
@@ -117,7 +118,7 @@ export async function PATCH(request: NextRequest) {
     if (!result.ok) return fail(result.error, 400);
   }
 
-  await db.update(villages).set({ dmAlerts: dm, updatedAt: new Date() }).where(eq(villages.id, village.id));
+  await db.update(villages).set({ dmAlerts: dm }).where(eq(villages.id, village.id));
   return NextResponse.json({ success: true });
 }
 
@@ -129,7 +130,11 @@ export async function POST(request: NextRequest) {
 
   const message = `🧪 Test alert from ClashSync for **${tag}**. Alerts are working!`;
   const sends: Promise<SendResult>[] = [];
-  if (village.discordWebhookUrl) sends.push(sendDiscordMessage(village.discordWebhookUrl, message));
+  if (village.discordWebhookUrl) {
+    const webhookUrl = await openWebhookUrl(village.discordWebhookUrl);
+    if (!webhookUrl) return fail("Your saved webhook can't be read any more. Remove it and add it again.", 400);
+    sends.push(sendDiscordMessage(webhookUrl, message));
+  }
   if (village.dmAlerts && village.ownerId) {
     const discordId = await discordIdFor(village.ownerId);
     if (discordId) sends.push(sendDiscordDm(discordId, message));
@@ -146,7 +151,7 @@ export async function DELETE(request: NextRequest) {
   if (loaded instanceof NextResponse) return loaded;
   await db
     .update(villages)
-    .set({ discordWebhookUrl: null, updatedAt: new Date() })
+    .set({ discordWebhookUrl: null })
     .where(eq(villages.id, loaded.village.id));
   return NextResponse.json({ success: true });
 }

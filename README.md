@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClashSync
 
-## Getting Started
+Paste your Clash of Clans **Export Village** JSON and see every running upgrade (builders, lab, pet house, builder base) with exact finish times. Apply Builder/Research Potions and get Discord alerts before timers finish.
 
-First, run the development server:
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local   # fill in DATABASE_URL, BETTER_AUTH_SECRET, Discord keys, …
+pnpm db:migrate              # apply drizzle/ migrations to your Neon database
+pnpm dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Command | What it does |
+| --- | --- |
+| `pnpm test` | Unit + integration tests (in-memory Postgres built from the migrations) |
+| `pnpm lint` | ESLint |
+| `pnpm screenshots` | Captures every UI state (needs `pnpm dev` running) |
+| `pnpm db:generate --name <change>` | New migration after editing `lib/db/schema.ts` |
+| `pnpm qstash:schedule <public-url>` | Creates the alert sweep schedule (once per deployment) |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Stop `pnpm dev` before `pnpm build`, because both use `.next/`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Docs
 
-## Learn More
+- `CLAUDE.md`: full developer guide (stack, layout, domain rules, roadmap)
+- `CONTEXT.md`: short guide for AI agents, including the database schema
+- `docs/PROJECT_OVERVIEW.md`: original product plan plus "as built" notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Not affiliated with Supercell.

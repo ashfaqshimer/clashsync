@@ -104,14 +104,10 @@ export function parseVillageExport(rawJson: string): ParseResult {
           timeStyle: "short",
         });
 
-        let displayName = entity.name;
-        if (isGearUp) displayName += " (Gear-Up)";
-        if (isGoblinOrHelper) displayName += " (Goblin/Extra)";
-
         upgrades.push({
           id: `${sectionName}-${rawDataId}-${index}-${exportTimestamp}`,
           dataId: rawDataId,
-          name: displayName,
+          name: entity.name, // Plain; display labels come from upgradeLabel()
           category: entity.category,
           villageType: isBuilderBase ? "BUILDER_BASE" : "HOME",
           currentLevel: currentLvl,

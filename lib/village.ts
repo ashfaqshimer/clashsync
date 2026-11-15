@@ -3,14 +3,14 @@ import { db } from "@/lib/db";
 import { boosts, upgrades, villages } from "@/lib/db/schema";
 import type { PotionKind } from "@/lib/boosts";
 import type { VillageOwnership } from "@/lib/ownership";
-import type { UpgradeType } from "@/lib/types";
+import type { UpgradeType, VillageType } from "@/lib/types";
 
 /** Serializable shape handed to the client dashboard. Times are Unix seconds. */
 export interface VillageUpgrade {
   id: string;
   name: string;
   category: UpgradeType;
-  villageType: "HOME" | "BUILDER_BASE";
+  villageType: VillageType;
   currentLevel: number;
   targetLevel: number;
   currentFinishTime: number;
@@ -38,7 +38,6 @@ export interface VillageSnapshot {
   upgrades: VillageUpgrade[];
 }
 
-/** Loads a village and its ACTIVE upgrades. `tag` must be normalized ("#XXXX"). */
 export interface LoadedVillage {
   village: VillageSnapshot;
   /** Server-only: feed to getVillageAccess(). Not for the client. */
@@ -55,12 +54,13 @@ export async function getOwnedVillages(ownerId: string) {
       nextFinishTime: min(upgrades.currentFinishTime),
     })
     .from(villages)
-    .leftJoin(upgrades, and(eq(upgrades.villageId, villages.id), eq(upgrades.status, "ACTIVE")))
+    .leftJoin(upgrades, eq(upgrades.villageId, villages.id))
     .where(eq(villages.ownerId, ownerId))
     .groupBy(villages.id)
     .orderBy(sql`${villages.lastExportTimestamp} desc nulls last`);
 }
 
+/** Loads a village and its current upgrades. `tag` must be normalized ("#XXXX"). */
 export async function getVillage(tag: string): Promise<LoadedVillage | null> {
   const [row] = await db
     .select()
@@ -74,7 +74,7 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
     db
       .select()
       .from(upgrades)
-      .where(and(eq(upgrades.villageId, row.id), eq(upgrades.status, "ACTIVE")))
+      .where(eq(upgrades.villageId, row.id))
       .orderBy(asc(upgrades.currentFinishTime)),
     db
       .select({ kind: boosts.kind, createdAt: boosts.createdAt })
@@ -85,7 +85,7 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
   ]);
 
   const village: VillageSnapshot = {
-    playerTag: row.playerTag ?? tag,
+    playerTag: row.playerTag,
     lastExportTimestamp: row.lastExportTimestamp,
     builderCount: row.builderCount,
     isVerified: Boolean(row.verifiedAt),
@@ -96,13 +96,13 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
     builderBoostEndsAt: row.builderBoostEndsAt,
     labBoostEndsAt: row.labBoostEndsAt,
     undoableBoost: latestBoost
-      ? { kind: latestBoost.kind as PotionKind, createdAt: latestBoost.createdAt.toISOString() }
+      ? { kind: latestBoost.kind, createdAt: latestBoost.createdAt.toISOString() }
       : null,
     upgrades: upgradeRows.map((u) => ({
       id: u.id,
       name: u.entityName,
-      category: u.category as UpgradeType,
-      villageType: u.villageType === "BUILDER_BASE" ? "BUILDER_BASE" : "HOME",
+      category: u.category,
+      villageType: u.villageType,
       currentLevel: u.currentLevel,
       targetLevel: u.targetLevel,
       currentFinishTime: u.currentFinishTime,

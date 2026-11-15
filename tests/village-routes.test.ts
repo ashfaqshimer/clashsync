@@ -42,8 +42,8 @@ function exportJson(timestamp: number, extra: object = {}) {
 
 const now = () => Math.floor(Date.now() / 1000);
 const village = async () => (await testDb.select().from(villages).where(eq(villages.playerTag, TAG)))[0];
-const activeUpgrades = async () =>
-  (await testDb.select().from(upgrades).where(eq(upgrades.status, "ACTIVE"))).sort((a, b) => a.dataId - b.dataId);
+const currentUpgrades = async () =>
+  (await testDb.select().from(upgrades)).sort((a, b) => a.dataId - b.dataId);
 
 beforeEach(async () => {
   await resetTestDb();
@@ -82,21 +82,31 @@ describe("POST /api/village/sync", () => {
     }
   });
 
-  it("replaces previous upgrades (cancel + insert) in one go", async () => {
+  it("replaces the previous upgrades (delete + insert) in one go", async () => {
     await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
-    await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
-    expect(await activeUpgrades()).toHaveLength(2);
-    expect(await testDb.select().from(upgrades)).toHaveLength(4);
+    const first = await currentUpgrades();
+    await sync(post("/api/village/sync", { rawJson: exportJson(now(), { units: [] }) }));
+    const second = await currentUpgrades();
+    expect(second).toHaveLength(1); // the finished lab upgrade is gone, not kept as history
+    expect(second[0].id).not.toBe(first[0].id);
+  });
+
+  it("stores plain entity names (labels are display-only)", async () => {
+    const json = exportJson(now(), { buildings: [{ data: 1000008, lvl: 20, timer: 3600, gear_up: 1 }] });
+    await sync(post("/api/village/sync", { rawJson: json }));
+    const [cannon] = await currentUpgrades();
+    expect(cannon.isGearUp).toBe(true);
+    expect(cannon.entityName).not.toMatch(/Gear-Up/);
   });
 
   it("doesn't re-alert an upgrade that was already alerted", async () => {
     await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
     const alertedAt = new Date("2026-01-01T00:00:00Z");
-    const [cannon] = await activeUpgrades();
+    const [cannon] = await currentUpgrades();
     await testDb.update(upgrades).set({ notifiedAt: alertedAt }).where(eq(upgrades.id, cannon.id));
 
     await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
-    const [newCannon, newLab] = await activeUpgrades();
+    const [newCannon, newLab] = await currentUpgrades();
     expect(newCannon.id).not.toBe(cannon.id);
     expect(newCannon.notifiedAt).toEqual(alertedAt);
     expect(newLab.notifiedAt).toBeNull();
@@ -109,7 +119,7 @@ describe("POST /api/village/sync", () => {
     await testDb.update(villages).set({ labBoostEndsAt: boostEnd }).where(eq(villages.playerTag, TAG));
 
     await sync(post("/api/village/sync", { rawJson: exportJson(t) }));
-    const [cannon, lab] = await activeUpgrades();
+    const [cannon, lab] = await currentUpgrades();
     expect((await village()).labBoostEndsAt).toBe(boostEnd);
     expect(lab.originalFinishTime).toBe(t + 86400);
     expect(lab.currentFinishTime).toBe(t + 86400 - 23 * 1800);
@@ -122,7 +132,7 @@ describe("POST /api/village/sync", () => {
     await testDb.update(villages).set({ labBoostEndsAt: t - 60 }).where(eq(villages.playerTag, TAG));
 
     await sync(post("/api/village/sync", { rawJson: exportJson(t) }));
-    const [, lab] = await activeUpgrades();
+    const [, lab] = await currentUpgrades();
     expect((await village()).labBoostEndsAt).toBeNull();
     expect(lab.currentFinishTime).toBe(lab.originalFinishTime);
   });

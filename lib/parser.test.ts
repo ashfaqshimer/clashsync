@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatDuration, parseVillageExport } from "./parser";
 import { SAMPLE_VILLAGE_JSON } from "./sample-data";
+import { upgradeLabel } from "./upgrade-label";
 
 const TS = 1_750_000_000;
 const HOUR = 3600;
@@ -116,9 +117,10 @@ describe("parseVillageExport", () => {
     });
     const [gear, extra] = r.upgrades;
     expect(gear.isGearUp).toBe(true);
-    expect(gear.name).toContain("Gear-Up");
+    expect(gear.name).not.toContain("Gear-Up"); // plain name; labels are display-only
+    expect(upgradeLabel({ ...gear, isExtraSlot: gear.isGoblinOrHelper })).toContain("(Gear-Up)");
     expect(extra.isGoblinOrHelper).toBe(true);
-    expect(extra.name).toContain("Goblin/Extra");
+    expect(upgradeLabel({ ...extra, isExtraSlot: extra.isGoblinOrHelper })).toContain("(Goblin/Extra)");
   });
 
   it("sorts upgrades soonest first", () => {

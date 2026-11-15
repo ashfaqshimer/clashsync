@@ -1,86 +1,55 @@
 # ClashSync Context & Developer Guide
 
+Short guide for AI agents (Gemini and others). `CLAUDE.md` is the full guide; where the two disagree, `CLAUDE.md` and then the code win. Keep this file in sync when the schema, stack or workflows change.
+
 ## 1. Project Summary
-**ClashSync** is a web application designed for Clash of Clans players to live-sync and track active builder, laboratory, and pet house queues by ingesting the game's official "Export Village" JSON. It tracks countdown timers, supports instant acceleration calculations (e.g. Builder Potions), and sends automated completion alerts via Discord.
+**ClashSync** is a web app for Clash of Clans players. They paste the game's **Export Village** JSON and see every running upgrade (builders, laboratory, pet house, builder base) with exact finish times. They can apply Builder/Research Potions and get Discord alerts (channel webhook or bot DM) shortly before timers finish.
 
----
+## 2. Tech Stack (as built)
+- **Next.js 16.4** App Router, React 19.3, TypeScript. Read `node_modules/next/dist/docs/` before using Next APIs (see `AGENTS.md`). Route handler `params` is a Promise.
+- **Tailwind CSS v4** with a hand-written design system in `app/globals.css` and `app/_components/ui/`. **No shadcn/ui.**
+- **Neon Postgres + Drizzle ORM** (`drizzle-orm/neon-http`). No interactive transactions, so multi-step writes use `db.batch([...])` (atomic).
+- **Better Auth** (self-hosted) for Discord login.
+- **Upstash QStash**: one schedule every 2 min POSTs to `/api/cron/notify` (signature verified). There are no per-upgrade messages.
+- **pnpm** only. Tests: Vitest (unit tests next to code; integration tests in `tests/` on in-memory PGlite built from the migrations).
 
-## 2. Tech Stack
-- **Framework:** Next.js 16+ (App Router), React 19, TypeScript.
-- **Styling:** Tailwind CSS v4, shadcn/ui (dark mode / gaming aesthetic).
-- **Database:** PostgreSQL (with Drizzle ORM or Prisma) storing user profiles, active queues, and notification preferences.
-- **Job Scheduling:** Upstash QStash (serverless cron & delayed webhook execution to trigger timer completions).
-- **Notification Provider:** Discord (Discord Bot API DM or Webhook integration; replaced Telegram).
+## 3. Core Workflows
 
----
+### A. Sync (paste export)
+1. The client parses the JSON with `lib/parser.ts` (pure, also runs on the server): `finish = export timestamp + timer`, in UTC **Unix seconds**.
+2. `POST /api/village/sync` upserts the village by **player tag** (`normalizeTag`). It then **deletes the village's upgrade rows and inserts the new set** in one `db.batch`. `upgrades` only ever holds the current timers; there is no history and no status column.
+3. Before deleting, it reads which old upgrades were already alerted and carries `notified_at` over to matching new rows (`carryOverNotified`), so nobody is alerted twice.
+4. A logged-in sync of an unclaimed village claims it for that account.
 
-## 3. Core Architecture & Workflows
+### B. Potions
+- Builder Potion: builders 10× for 1h (up to 9h saved). Research Potion: lab 24× for 1h (up to 23h saved). Only `current_finish_time` changes; `original_finish_time` keeps the export's time.
+- Potions stack after `villages.builder_boost_ends_at` / `lab_boost_ends_at`. Each one is logged in `boosts`, and only the latest `APPLIED` one can be undone (if its timers are unchanged). A re-sync marks boosts `SUPERSEDED`.
 
-### A. Village JSON Ingestion
-1. The user exports village data from Clash of Clans settings and uploads/pastes the raw JSON into the app.
-2. The parser calculates the exact completion timestamps (`finish_time = json_export_timestamp + remaining_seconds`) for:
-   - Builders (up to 6 builders + goblin builder if active)
-   - Laboratory (troops, spells, siege machines)
-   - Pet House (hero pets)
-3. Active records are updated in the database, replacing expired or obsolete queues.
-4. For each active upgrade, a delayed webhook task is scheduled via Upstash QStash for `current_finish_time`.
+### C. Discord Alerts
+- Each village picks a lead time (`alert_lead_minutes`, default 5; 0 = when done).
+- The sweep (`lib/notify.ts`) claims due rows with a single `UPDATE … WHERE notified_at IS NULL RETURNING`, then sends one message per village to the webhook and/or a DM to the owner. On 429/5xx it releases the claim so the next run retries.
 
-### B. Builder Potion Handling ("Pop Potion")
-1. Deducts 9 hours (32,400 seconds) from all active builder timers.
-2. Recalculates `current_finish_time`.
-3. Cancels existing QStash scheduled messages and schedules new ones with the updated timestamps.
+## 4. Database Schema (`lib/db/schema.ts`)
+Conventions: game times are `bigint` Unix seconds, app events are `timestamptz`. Our ids are `uuid` (generated in code); auth ids are `text`. Fixed value sets are `text` + a CHECK constraint (no pg enums). `updated_at` updates automatically.
 
-### C. Discord Notifications
-1. When a timer expires, QStash triggers `/api/webhooks/notify` with message signature verification.
-2. The server verifies the signature and sends a message to Discord (either direct message via Bot API or to a dedicated channel webhook).
-3. Sample Alert: *"Chief, your Eagle Artillery Level 7 has finished upgrading!"*
+- **`auth_user` / `auth_session` / `auth_account` / `auth_verification`**: Better Auth tables (people, not villages). `auth_account` is unique on `(provider_id, account_id)`. The Discord user id is `account_id` where `provider_id = 'discord'`. OAuth tokens are encrypted by Better Auth; read them via `auth.api.getAccessToken`.
+- **`villages`**: one row per Clash village.
+  - `id` uuid, `player_tag` text NOT NULL UNIQUE (`#XXXX`), `owner_id` → `auth_user` (null = unclaimed), `verified_at`
+  - `last_export_timestamp`, `builder_count`, `builder_boost_ends_at`, `lab_boost_ends_at` (Unix seconds)
+  - `discord_webhook_url` (**encrypted**, `lib/secrets.ts`; never sent to the client), `dm_alerts`, `alert_lead_minutes` (0–1440)
+- **`upgrades`**: the village's current timers, replaced on every sync.
+  - `id` uuid, `village_id` → `villages` (cascade), `data_id`, `entity_name` (plain name; the UI adds "(Gear-Up)" / "(Goblin/Extra)" via `upgradeLabel()`)
+  - `category` (`BUILDER | LABORATORY | PET_HOUSE | BUILDER_BASE | OTHER`), `village_type` (`HOME | BUILDER_BASE`)
+  - `current_level`, `target_level`, `original_finish_time`, `current_finish_time` (Unix seconds), `is_gear_up`, `is_extra_slot`, `notified_at`
+- **`boosts`**: potion log for undo: `kind` (`BUILDER_POTION | RESEARCH_POTION`), `window_start/end`, `previous_boost_ends_at`, `changes` jsonb (`{upgradeId, from, to}[]`), `status` (`APPLIED | UNDONE | SUPERSEDED`).
 
----
+Schema changes: edit `schema.ts` → `pnpm db:generate --name <change>` → review/hand-edit the SQL in `drizzle/` → `pnpm test` → `pnpm db:migrate`. Never use `drizzle-kit push`.
 
-## 4. Key Entities & Database Schema
-
-### `users`
-- `id`: UUID (Primary Key)
-- `discord_user_id`: String (nullable, for Bot DMs)
-- `discord_webhook_url`: String (nullable, for channel notifications)
-- `created_at`: Timestamp
-- `updated_at`: Timestamp
-
-### `upgrades`
-- `id`: UUID (Primary Key)
-- `user_id`: UUID (Foreign Key -> `users.id`)
-- `entity_name`: String (e.g. "Eagle Artillery Lvl 7", "Barbarian King Lvl 95")
-- `type`: Enum (`BUILDER`, `LABORATORY`, `PET_HOUSE`)
-- `original_finish_time`: Integer / BigInt (Unix epoch timestamp)
-- `current_finish_time`: Integer / BigInt (Unix epoch timestamp)
-- `qstash_message_id`: String (nullable, tracking scheduled QStash job)
-- `status`: Enum (`ACTIVE`, `COMPLETED`, `CANCELLED`)
-
----
-
-## 5. Required Environment Variables
-```env
-# Database
-DATABASE_URL=postgresql://...
-
-# Upstash QStash
-QSTASH_URL=https://qstash.upstash.io/v2/publish/
-QSTASH_TOKEN=ey...
-QSTASH_CURRENT_SIGNING_KEY=sig_...
-QSTASH_NEXT_SIGNING_KEY=sig_...
-
-# Discord
-DISCORD_BOT_TOKEN=...
-DISCORD_CLIENT_ID=...
-DISCORD_CLIENT_SECRET=...
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
----
+## 5. Environment Variables
+See `.env.example`. Main ones: `DATABASE_URL` (pooled Neon), `NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_SECRET` (signs sessions **and** encrypts webhooks/OAuth tokens; changing it means saved webhooks have to be added again), `DISCORD_CLIENT_ID/SECRET`, `DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` (DM alerts), `QSTASH_*`, `CLASH_API_KEY`.
 
 ## 6. Project Guidelines
-- Keep Next.js App Router server and client components cleanly separated.
-- Follow Tailwind v4 conventions for styling.
-- All time calculations must be timezone-agnostic using UTC / Unix epoch timestamps.
-- Validate incoming QStash webhook signatures for security.
-
+- Store epochs and format only for display. The server never computes "now" for the dashboard (`useNow()` on the client).
+- Keep `lib/parser.ts` free of server-only imports.
+- API responses: `{ success: boolean, error?: string, ... }`. Copy is player-friendly, not technical.
+- Validate QStash signatures. Treat Discord webhook URLs as secrets.

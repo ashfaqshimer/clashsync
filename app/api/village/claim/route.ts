@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
         .set({
           ownerId: viewer.id,
           verifiedAt: now,
-          updatedAt: now,
           ...(sameOwner ? {} : { discordWebhookUrl: null, dmAlerts: false }),
         })
         .where(eq(villages.id, existing.id));

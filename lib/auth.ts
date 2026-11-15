@@ -36,7 +36,8 @@ export const auth = betterAuth({
     // Skip the DB lookup on most requests
     cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
-  account: { modelName: "authAccount" },
+  // Discord tokens are encrypted at rest; read them via auth.api.getAccessToken
+  account: { modelName: "authAccount", encryptOAuthTokens: true },
   verification: { modelName: "authVerification" },
   socialProviders: {
     discord: {

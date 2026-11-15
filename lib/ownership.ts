@@ -11,7 +11,7 @@ import { getSessionUser, type SessionUser } from "@/lib/auth";
  */
 
 export interface VillageOwnership {
-  playerTag: string | null;
+  playerTag: string;
   ownerId: string | null;
 }
 

@@ -85,10 +85,9 @@ export async function POST(request: NextRequest) {
         : item.currentFinishTime;
 
     // All writes go in one batch so a failure can't leave the village with its
-    // old upgrades cancelled but no new ones (neon-http has no transactions).
+    // old upgrades deleted but no new ones (neon-http has no transactions).
     const village = existingVillages[0];
     const villageId = village?.id ?? crypto.randomUUID();
-    const updatedAt = new Date();
 
     const statements: BatchItem<"pg">[] = village
       ? [
@@ -100,7 +99,6 @@ export async function POST(request: NextRequest) {
                 ? { builderCount: parseResult.builderHutCount }
                 : {}),
               ...boostFields,
-              updatedAt,
             })
             .where(eq(villages.id, villageId)),
           // Potions applied before this sync can no longer be undone
@@ -108,11 +106,8 @@ export async function POST(request: NextRequest) {
             .update(boosts)
             .set({ status: "SUPERSEDED" })
             .where(and(eq(boosts.villageId, villageId), eq(boosts.status, "APPLIED"))),
-          // Upgrades from the previous sync are replaced by this one
-          db
-            .update(upgrades)
-            .set({ status: "CANCELLED", updatedAt })
-            .where(and(eq(upgrades.villageId, villageId), eq(upgrades.status, "ACTIVE"))),
+          // upgrades holds only the current timers: this export replaces them
+          db.delete(upgrades).where(eq(upgrades.villageId, villageId)),
           ...(claimFor
             ? [
                 db
@@ -145,13 +140,7 @@ export async function POST(request: NextRequest) {
               notifiedAt: upgrades.notifiedAt,
             })
             .from(upgrades)
-            .where(
-              and(
-                eq(upgrades.villageId, villageId),
-                eq(upgrades.status, "ACTIVE"),
-                isNotNull(upgrades.notifiedAt)
-              )
-            )
+            .where(and(eq(upgrades.villageId, villageId), isNotNull(upgrades.notifiedAt)))
         : [];
       const notified = carryOverNotified(
         previous,
@@ -170,10 +159,8 @@ export async function POST(request: NextRequest) {
             villageType: item.villageType,
             currentLevel: item.currentLevel,
             targetLevel: item.targetLevel,
-            remainingSecondsAtExport: item.remainingSeconds,
             originalFinishTime: item.originalFinishTime,
             currentFinishTime: finishTimeFor(item),
-            status: "ACTIVE",
             isGearUp: Boolean(item.isGearUp),
             isExtraSlot: Boolean(item.isGoblinOrHelper),
           }))
@@ -199,6 +186,13 @@ export async function POST(request: NextRequest) {
       upgrades: parseResult.upgrades,
     });
   } catch (err: unknown) {
+    // Two first-time syncs of the same tag at once: the other one created the village
+    if (isUniqueViolation(err)) {
+      return NextResponse.json(
+        { success: false, error: "This village was just synced from somewhere else. Try again." },
+        { status: 409 }
+      );
+    }
     const message = err instanceof Error ? err.message : "Unknown server error";
     return NextResponse.json(
       { success: false, error: `Failed to sync village to database: ${message}` },
@@ -207,3 +201,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
+
+/** Postgres 23505, possibly wrapped by Drizzle (err.cause). */
+function isUniqueViolation(err: unknown): boolean {
+  for (let e: unknown = err; e && typeof e === "object"; e = (e as { cause?: unknown }).cause) {
+    if ((e as { code?: unknown }).code === "23505") return true;
+  }
+  return false;
+}

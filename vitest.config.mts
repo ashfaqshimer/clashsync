@@ -9,5 +9,7 @@ export default defineConfig({
     include: ["**/*.test.ts"],
     exclude: ["node_modules/**", ".next/**"],
     environment: "node",
+    // lib/secrets.ts needs a key; tests never touch real data
+    env: { BETTER_AUTH_SECRET: "test-only-secret" },
   },
 });

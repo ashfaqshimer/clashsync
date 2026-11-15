@@ -8,7 +8,8 @@
  *   - otherwise                → finishes (multiplier − 1) × duration earlier
  */
 
-export type PotionKind = "BUILDER_POTION" | "RESEARCH_POTION";
+export const POTION_KINDS = ["BUILDER_POTION", "RESEARCH_POTION"] as const;
+export type PotionKind = (typeof POTION_KINDS)[number];
 
 export interface PotionSpec {
   label: string;

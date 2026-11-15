@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
       .where(
         and(
           eq(upgrades.villageId, village.id),
-          eq(upgrades.status, "ACTIVE"),
           eq(upgrades.category, spec.category),
           eq(upgrades.villageType, "HOME"),
           gt(upgrades.currentFinishTime, window.start)
@@ -83,17 +82,16 @@ export async function POST(request: NextRequest) {
       to: boostedFinishTime(t.currentFinishTime, window.start, spec.multiplier, spec.durationSeconds),
     }));
 
-    const updatedAt = new Date();
     const statements: BatchItem<"pg">[] = [
       ...changes.map((c) =>
         db
           .update(upgrades)
-          .set({ currentFinishTime: c.to, updatedAt })
+          .set({ currentFinishTime: c.to })
           .where(and(eq(upgrades.id, c.upgradeId), eq(upgrades.currentFinishTime, c.from)))
       ),
       db
         .update(villages)
-        .set({ [endColumn]: window.end, updatedAt })
+        .set({ [endColumn]: window.end })
         .where(eq(villages.id, village.id)),
       db.insert(boosts).values({
         id: crypto.randomUUID(),
@@ -137,39 +135,36 @@ export async function DELETE(request: NextRequest) {
 
     if (!latest) return fail("There's no potion to undo.", 404);
 
-    const kind = latest.kind as PotionKind;
+    const kind = latest.kind;
     const endColumn = boostEndColumn(kind);
     const ids = latest.changes.map((c) => c.upgradeId);
     const current = await db
-      .select({ id: upgrades.id, status: upgrades.status, currentFinishTime: upgrades.currentFinishTime })
+      .select({ id: upgrades.id, currentFinishTime: upgrades.currentFinishTime })
       .from(upgrades)
       .where(inArray(upgrades.id, ids));
 
+    // A re-sync replaces every upgrade row, so a missing row also means "changed"
     const untouched =
       village[endColumn] === latest.windowEnd &&
-      latest.changes.every((c) => {
-        const row = current.find((r) => r.id === c.upgradeId);
-        return row?.status === "ACTIVE" && row.currentFinishTime === c.to;
-      });
+      latest.changes.every((c) => current.find((r) => r.id === c.upgradeId)?.currentFinishTime === c.to);
 
     if (!untouched) {
       await db.update(boosts).set({ status: "SUPERSEDED" }).where(eq(boosts.id, latest.id));
       return fail("Your timers changed since that potion, so it can't be undone.", 409);
     }
 
-    const updatedAt = new Date();
     const now = Math.floor(Date.now() / 1000);
     const statements: BatchItem<"pg">[] = [
       ...latest.changes.map((c) =>
         db
           .update(upgrades)
           // If the potion made it finish (and alert) early, re-arm the alert
-          .set({ currentFinishTime: c.from, updatedAt, ...(c.from > now ? { notifiedAt: null } : {}) })
+          .set({ currentFinishTime: c.from, ...(c.from > now ? { notifiedAt: null } : {}) })
           .where(eq(upgrades.id, c.upgradeId))
       ),
       db
         .update(villages)
-        .set({ [endColumn]: latest.previousBoostEndsAt, updatedAt })
+        .set({ [endColumn]: latest.previousBoostEndsAt })
         .where(eq(villages.id, village.id)),
       db.update(boosts).set({ status: "UNDONE" }).where(eq(boosts.id, latest.id)),
     ];

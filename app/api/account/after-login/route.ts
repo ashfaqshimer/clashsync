@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { authAccounts } from "@/lib/db/schema";
-import { getSessionUser } from "@/lib/auth";
+import { headers } from "next/headers";
+import { auth, getSessionUser } from "@/lib/auth";
 import { addUserToGuild, isDmConfigured } from "@/lib/discord";
 
 /**
@@ -21,13 +22,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const [discord] = await db
-      .select({ discordId: authAccounts.accountId, accessToken: authAccounts.accessToken })
+      .select({ id: authAccounts.id, discordId: authAccounts.accountId })
       .from(authAccounts)
       .where(and(eq(authAccounts.userId, viewer.id), eq(authAccounts.providerId, "discord")))
       .limit(1);
-    if (discord?.accessToken) {
-      const joined = await addUserToGuild(discord.discordId, discord.accessToken);
-      if (!joined.ok) console.warn(`[after-login] guild join: ${joined.error}`);
+    if (discord) {
+      // Tokens are stored encrypted; Better Auth decrypts (and refreshes if needed)
+      const { accessToken } = await auth.api.getAccessToken({
+        body: { accountId: discord.id },
+        headers: await headers(),
+      });
+      if (accessToken) {
+        const joined = await addUserToGuild(discord.discordId, accessToken);
+        if (!joined.ok) console.warn(`[after-login] guild join: ${joined.error}`);
+      }
     }
   } catch (err) {
     console.warn("[after-login] guild join failed:", err);

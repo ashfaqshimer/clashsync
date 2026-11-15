@@ -1,9 +1,8 @@
-export type UpgradeType =
-  | "BUILDER"
-  | "LABORATORY"
-  | "PET_HOUSE"
-  | "BUILDER_BASE"
-  | "OTHER";
+export const UPGRADE_TYPES = ["BUILDER", "LABORATORY", "PET_HOUSE", "BUILDER_BASE", "OTHER"] as const;
+export type UpgradeType = (typeof UPGRADE_TYPES)[number];
+
+export const VILLAGE_TYPES = ["HOME", "BUILDER_BASE"] as const;
+export type VillageType = (typeof VILLAGE_TYPES)[number];
 
 export interface RawVillageItem {
   data?: number;
@@ -42,7 +41,7 @@ export interface ActiveUpgrade {
   dataId: number;
   name: string;
   category: UpgradeType;
-  villageType: "HOME" | "BUILDER_BASE";
+  villageType: VillageType;
   currentLevel: number;
   targetLevel: number;
   remainingSeconds: number;

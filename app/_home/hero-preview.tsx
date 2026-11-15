@@ -2,6 +2,7 @@
 
 import { FlaskConical, Hammer, PawPrint } from "lucide-react";
 import { formatDuration } from "@/lib/parser";
+import { upgradeLabel } from "@/lib/upgrade-label";
 import { demoVillage } from "@/lib/demo-village";
 import { useNow } from "@/app/v/[tag]/use-now";
 import { DiscordPing } from "@/app/_components/discord-ping";
@@ -36,7 +37,7 @@ export function HeroPreview() {
                   <Icon />
                 </IconChip>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-bold text-cream">{u.name}</div>
+                  <div className="truncate text-sm font-bold text-cream">{upgradeLabel(u)}</div>
                   <div className="text-[11px] font-semibold text-faint tabular-nums">
                     Lv {u.currentLevel} → {u.targetLevel}
                   </div>

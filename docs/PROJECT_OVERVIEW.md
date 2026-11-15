@@ -1,5 +1,7 @@
 # Project Overview: ClashSync
 
+> **This is the original plan.** Sections 1–4 are kept as written. For what was actually built (stack, schema, workflows), see **"As built"** at the end, `CLAUDE.md` and `CONTEXT.md`. Where they disagree, the code wins.
+
 **Objective:** A web application that parses the official Clash of Clans "Export Village" JSON to live-sync active builder, laboratory, and pet house queues. The app will calculate exact finish times, allow users to apply Builder Potions to adjust timers, and send automated completion alerts via Discord (Bot / Webhooks).
 
 ---
@@ -64,3 +66,13 @@
 2. **Reverse-Engineer the JSON:** Export village data from the game. Inspect the JSON structure to map exactly where Supercell stores the active countdowns (look for arrays related to `buildings`, `hero`, or `laboratory` that contain a `timer` or `construction` key).
 3. **Build the Parser:** Write a TypeScript utility function that takes the raw JSON string and returns a clean array of active upgrade objects.
 4. **Setup Discord Bot/Webhooks:** Create an application in the Discord Developer Portal, configure bot permissions (or webhook delivery), and build the Next.js API route that handles user linking and notification dispatch.
+
+---
+
+## As built (differences from the plan)
+
+- **Stack:** Neon Postgres + Drizzle ORM, Better Auth (Discord login), hand-written Tailwind v4 design system (no shadcn/ui), Vitest.
+- **Schema:** `villages` (one per player tag, owned by an `auth_user`) replaced the planned `users` table. `upgrades` holds only the current timers: each sync deletes the village's rows and inserts new ones (no status, no `qstash_message_id`). `boosts` logs potions so the latest can be undone. Full column list: `CONTEXT.md` §4 and `lib/db/schema.ts`.
+- **Potions:** Builder Potion = 10× for 1h (up to 9h saved), plus a Research Potion (24× for 1h). Both are modelled as a speed-up window rather than a flat 9h subtraction.
+- **Alerts:** no per-upgrade QStash messages. One QStash schedule runs a sweep every 2 min (`/api/cron/notify`) that alerts a chosen number of minutes *before* the finish, via channel webhook (stored encrypted) and/or bot DM.
+
