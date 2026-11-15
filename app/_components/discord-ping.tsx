@@ -7,7 +7,7 @@ import { cx } from "./ui/cx";
  */
 export function DiscordPing({
   item = "Inferno Tower Level 10",
-  when = "finishes in 5 minutes",
+  when = "done in 5 minutes",
   className,
 }: {
   item?: string;
@@ -22,7 +22,7 @@ export function DiscordPing({
       )}
     >
       <figcaption className="sr-only">
-        Example Discord alert: your {item} {when}.
+        Example Discord alert: {item}, {when}.
       </figcaption>
       <div className="flex items-start gap-2.5" aria-hidden>
         <span className="icon-chip icon-chip-gold h-9 w-9 shrink-0 rounded-full [&>svg]:h-4.5 [&>svg]:w-4.5">
@@ -35,7 +35,7 @@ export function DiscordPing({
             <span className="text-[11px] font-semibold text-[#949ba4]">Today</span>
           </div>
           <p className="mt-0.5 font-semibold text-[#dbdee1]">
-            ⏰ Chief, your <strong className="text-white">{item}</strong> {when}!
+            ⏰ Heads-up, Chief! <strong className="text-white">{item}</strong>: {when}.
           </p>
         </div>
       </div>

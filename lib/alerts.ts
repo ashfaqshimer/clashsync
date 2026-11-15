@@ -38,28 +38,35 @@ const MAX_LINES = 15;
 
 /**
  * Discord timestamps (`<t:…:R>` / `<t:…:t>`) render in each reader's own
- * timezone and keep counting down live, so "in 4 minutes" stays accurate.
+ * timezone and keep updating after the message is sent. The text around them
+ * can't change, so it must read right both before and after the finish:
+ * "done in 4 minutes" → later "done 29 minutes ago". Never "finishes <t:R>".
  */
-function when(finish: number, now: number): string {
-  return finish <= now ? `is ready (<t:${finish}:R>)` : `finishes <t:${finish}:R> (at <t:${finish}:t>)`;
+function done(finish: number): string {
+  return `done <t:${finish}:R> (at <t:${finish}:t>)`;
 }
 
 /** Items must be sorted by finish time. */
 export function alertMessage(tag: string, items: AlertItem[], now: number, link: string): string {
   if (items.length === 1) {
     const [u] = items;
-    const icon = u.currentFinishTime <= now ? "🔨" : "⏰";
-    return `${icon} Chief, your **${u.entityName} Level ${u.targetLevel}** ${when(u.currentFinishTime, now)}! (${tag})\n${link}`;
+    const item = `**${u.entityName} Level ${u.targetLevel}**`;
+    // Wording is frozen at send time, so only claim "ready" if it already is
+    const headline =
+      u.currentFinishTime <= now
+        ? `🔨 Chief, your ${item} is ready! It was ${done(u.currentFinishTime)}.`
+        : `⏰ Heads-up, Chief! ${item}: ${done(u.currentFinishTime)}.`;
+    return `${headline} · ${tag}\n${link}`;
   }
   const allDone = items.every((u) => u.currentFinishTime <= now);
   const lines = items
     .slice(0, MAX_LINES)
-    .map((u) => `• ${u.entityName} → Level ${u.targetLevel} ${when(u.currentFinishTime, now)}`);
+    .map((u) => `• ${u.entityName} → Level ${u.targetLevel}: ${done(u.currentFinishTime)}`);
   if (items.length > MAX_LINES) lines.push(`…and ${items.length - MAX_LINES} more`);
   const headline = allDone
     ? `🔨 Chief, **${items.length} upgrades** are ready!`
-    : `⏰ Chief, **${items.length} upgrades** are about to finish!`;
-  return `${headline} (${tag})\n${lines.join("\n")}\n${link}`;
+    : `⏰ Heads-up, Chief! **${items.length} upgrades** to check:`;
+  return `${headline} · ${tag}\n${lines.join("\n")}\n${link}`;
 }
 
 export interface UpgradeIdentity {

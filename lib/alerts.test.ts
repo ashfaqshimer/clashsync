@@ -38,7 +38,8 @@ describe("alertMessage", () => {
   it("announces an upcoming finish with a live Discord countdown", () => {
     const msg = alertMessage("#PY", [cannon], NOW, LINK);
     expect(msg).toContain("⏰");
-    expect(msg).toContain("**Cannon Level 21** finishes <t:1750000300:R> (at <t:1750000300:t>)");
+    expect(msg).toContain("**Cannon Level 21**: done <t:1750000300:R> (at <t:1750000300:t>)");
+    expect(msg).toContain("#PY");
     expect(msg).toContain(LINK);
   });
 
@@ -48,10 +49,22 @@ describe("alertMessage", () => {
     expect(msg).toContain("is ready");
   });
 
+  // The message text is frozen at send time but <t:…:R> keeps updating, so a
+  // countdown must read right later too ("done 29 minutes ago", never "finishes 29 minutes ago").
+  it("words every countdown so it still reads right after the finish", () => {
+    const single = alertMessage("#PY", [cannon], NOW, LINK);
+    const many = alertMessage("#PY", [cannon, { ...cannon, currentFinishTime: NOW - 60 }], NOW, LINK);
+    for (const msg of [single, many]) {
+      expect(msg).not.toMatch(/finish(es)? <t:/);
+      expect(msg).not.toMatch(/about to finish/);
+      for (const [, before] of msg.matchAll(/(\S+) <t:\d+:R>/g)) expect(before).toBe("done");
+    }
+  });
+
   it("lists several upgrades, capped at 15 lines", () => {
     const items = Array.from({ length: 17 }, (_, i) => ({ ...cannon, currentFinishTime: NOW + i }));
     const msg = alertMessage("#PY", items, NOW, LINK);
-    expect(msg).toContain("**17 upgrades** are about to finish");
+    expect(msg).toContain("**17 upgrades** to check");
     expect(msg).toContain("…and 2 more");
     expect(msg.match(/^• /gm)).toHaveLength(15);
   });

@@ -81,7 +81,7 @@ describe("runNotificationSweep", () => {
     expect(await notified(inWindow)).not.toBeNull();
     expect(await notified(tooEarly)).toBeNull();
     expect(calls).toHaveLength(1);
-    expect(calls[0].content).toContain("**Cannon Level 2** finishes <t:");
+    expect(calls[0].content).toContain("**Cannon Level 2**: done <t:");
   });
 
   it("with lead 0, alerts only once the upgrade is done", async () => {
