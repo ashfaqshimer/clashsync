@@ -5,6 +5,7 @@ import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { LiveDashboard } from "@/app/v/[tag]/live-dashboard";
 import { useNow } from "@/app/v/[tag]/use-now";
 import { SyncedBanner } from "@/app/v/[tag]/synced-banner";
+import { PlayerProfileLine } from "@/app/v/[tag]/player-profile-line";
 
 /** Every dashboard state, rendered by the real components with fake data (times relative to the client clock). */
 
@@ -76,12 +77,17 @@ export function DashboardFixtures() {
         <SyncedBanner upgrades={9} linked />
       </Section>
 
-      <Section title="Owner · builders idle, lab boosted, alerts on, undo available, one done">
+      <Section title="Owner · builders idle, lab boosted, alerts on, undo available, one done · profile line">
         <LiveDashboard
           village={b}
           isOwner
           canEdit
           ownership={{ state: "account_owner", loggedIn: true, dmAvailable: true }}
+          profile={
+            <PlayerProfileLine
+              profile={{ name: "Chief Ada", townHallLevel: 16, trophies: 5123, clanName: "Night Owls", clanBadge: null }}
+            />
+          }
         />
       </Section>
 

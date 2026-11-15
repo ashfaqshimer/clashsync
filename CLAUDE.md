@@ -31,7 +31,7 @@ Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn
 ```
 app/
   page.tsx                      Home (server): hero or "welcome back" list (behind <Suspense>), how it works, paste panel, features, FAQ
-  _home/                        Home sections: hero(+preview), how-it-works, sync-panel (client: parse → POST sync → redirect to dashboard
+  _home/                        Home sections: hero(+preview), how-it-works, sync-panel (wraps _components/export-form: parse → POST sync → dashboard
                                 with ?synced=N), find-by-tag, features, faq, welcome-back, site-header (header + footer w/ Supercell disclaimer)
   demo/                         Public read-only demo dashboard (LiveDashboard with demo prop, data from lib/demo-village.ts)
   api/village/sync/route.ts     POST {rawJson, playerTag?} → parse, upsert user by tag, CANCEL old ACTIVE upgrades, insert new (one db.batch)
@@ -49,7 +49,8 @@ app/
   icon.svg, favicon.ico, apple-icon.png, opengraph-image.png, manifest.ts   App icons, share image, web manifest (public/icon-192/512.png)
   api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
   api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
-  v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers)
+  v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers). Owners get "Update timers"
+                                (in-place paste, rejects other villages' exports) and a setup checklist; profile line = cached Supercell API
 lib/
   parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side
   clash-data.ts    CLASH_ENTITIES: numeric data ID → {name, category}; resolveEntity() fallback heuristics by section

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -7,9 +8,13 @@ import {
   FlaskConical,
   Hammer,
   PawPrint,
+  RefreshCw,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
+import { Button } from "@/app/_components/ui/button";
+import { SetupChecklist } from "./setup-checklist";
+import { UpdatePanel } from "./update-panel";
 import { formatDuration } from "@/lib/parser";
 import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { AlertsCard } from "./alerts-card";
@@ -56,6 +61,7 @@ export function LiveDashboard({
   canEdit,
   ownership,
   demo = false,
+  profile,
 }: {
   village: VillageSnapshot;
   isOwner: boolean;
@@ -63,8 +69,12 @@ export function LiveDashboard({
   ownership: OwnershipView;
   /** Public demo (/demo): read-only, no alerts or ownership cards. */
   demo?: boolean;
+  /** Player name / Town Hall line under the heading (streamed in by the server). */
+  profile?: ReactNode;
 }) {
   const now = useNow();
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const canUpdate = canEdit && !demo;
 
   const grouped = new Map<GroupKey, VillageUpgrade[]>();
   for (const u of village.upgrades) {
@@ -94,21 +104,38 @@ export function LiveDashboard({
 
   return (
     <div className="space-y-6">
-      <Card tone="wood" className="flex items-center gap-3 sm:gap-4 p-4 sm:p-6">
+      <Card tone="wood" className="flex flex-wrap items-center gap-3 sm:gap-4 p-4 sm:p-6">
         <IconChip size="lg">
           <Hammer />
         </IconChip>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 space-y-1">
           <Heading as="h1" size="lg" gold className="truncate">
             {village.playerTag}
           </Heading>
-          <p className="text-sm font-semibold text-cream/90 mt-1 min-h-5 tabular-nums">
+          {profile}
+          <p className="text-sm font-semibold text-cream/90 min-h-5 tabular-nums">
             {exportAge === null
               ? " "
               : `Synced ${exportAge < 60 ? "just now" : `${formatDuration(exportAge)} ago`}`}
           </p>
         </div>
+        {canUpdate && !updateOpen && (
+          <Button onClick={() => setUpdateOpen(true)} className="max-sm:w-full">
+            <RefreshCw className="w-4 h-4" />
+            Update timers
+          </Button>
+        )}
       </Card>
+
+      {updateOpen && <UpdatePanel tag={village.playerTag} onClose={() => setUpdateOpen(false)} />}
+
+      {canUpdate && (
+        <SetupChecklist
+          ownership={ownership}
+          alertsOn={village.webhookAlerts || village.dmAlerts}
+          onUpdate={() => setUpdateOpen(true)}
+        />
+      )}
 
       {exportAge !== null && exportAge > STALE_AFTER_SECONDS && (
         <div role="status" className="panel-stone !border-gold-500 flex items-start gap-3 p-4 text-sm font-semibold text-gold-100 animate-fade-in">
@@ -118,9 +145,19 @@ export function LiveDashboard({
           <div className="flex-1 self-center">
             Your export is {formatDuration(exportAge)} old, so upgrades you&apos;ve started since
             won&apos;t show here.{" "}
-            <Link href="/#sync" className="font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream">
-              Re-sync for accuracy
-            </Link>
+            {canUpdate ? (
+              <button
+                type="button"
+                onClick={() => setUpdateOpen(true)}
+                className="cursor-pointer font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream"
+              >
+                Update your timers
+              </button>
+            ) : (
+              <Link href="/#sync" className="font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream">
+                Re-sync for accuracy
+              </Link>
+            )}
           </div>
         </div>
       )}
@@ -177,6 +214,7 @@ export function LiveDashboard({
       )}
 
       {isOwner && !demo && (
+        <div id="alerts" className="scroll-mt-20">
         <AlertsCard
           tag={village.playerTag}
           webhookOn={village.webhookAlerts}
@@ -184,6 +222,7 @@ export function LiveDashboard({
           leadMinutes={village.alertLeadMinutes}
           dmAvailable={ownership.dmAvailable}
         />
+        </div>
       )}
 
       {!demo && <OwnershipCard tag={village.playerTag} ownership={ownership} />}

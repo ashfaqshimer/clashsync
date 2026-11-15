@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { RefreshCw } from "lucide-react";
 import { getVillage } from "@/lib/village";
 import { getVillageAccess } from "@/lib/ownership";
 import { isDmConfigured } from "@/lib/discord";
@@ -11,20 +10,14 @@ import { Card, Heading } from "@/app/_components/ui/card";
 import type { OwnershipState } from "./ownership-card";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
 import { LiveDashboard } from "./live-dashboard";
+import { PlayerProfile } from "./player-profile";
 import { SyncedBanner, type JustSynced } from "./synced-banner";
 
 export default function VillagePage({ params, searchParams }: PageProps<"/v/[tag]">) {
   return (
     <>
-      <SubpageHeader
-        actions={
-          <Link href="/#sync" className={buttonClass({ size: "sm" })}>
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Re-sync village</span>
-            <span className="sm:hidden">Re-sync</span>
-          </Link>
-        }
-      />
+      {/* "Update timers" lives on the dashboard itself (owners only) */}
+      <SubpageHeader />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <Suspense fallback={<DashboardSkeleton />}>
@@ -85,6 +78,11 @@ async function Village({ slug, justSynced }: { slug: string; justSynced: JustSyn
         isOwner={access.isOwner}
         canEdit={access.canEdit}
         ownership={{ state, loggedIn: access.viewer !== null, dmAvailable: isDmConfigured() }}
+        profile={
+          <Suspense fallback={null}>
+            <PlayerProfile tag={village.playerTag} />
+          </Suspense>
+        }
       />
     </div>
   );

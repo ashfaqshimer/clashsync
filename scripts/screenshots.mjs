@@ -98,6 +98,16 @@ const STATES = [
     steps: [step(`btn("Send test").click();`), step(`btn("Change webhook").click();`), step(`btn("I used a Builder Potion").click();`)],
   },
 
+  { page: "dashboard", name: "update-open", path: "/dev/dashboard", steps: [step(`btn("Update timers").click();`)] },
+  {
+    page: "dashboard", name: "update-wrong-village", path: "/dev/dashboard",
+    steps: [
+      step(`btn("Update timers").click();`),
+      step(`setVal(document.querySelector("textarea"), ${JSON.stringify(exportJson.replace("2PP0JQ9V", "9QQ2LL8Y"))});`),
+      step(`btn("Update timers").click();`),
+    ],
+  },
+
   // My villages + home welcome-back (fixtures) + the real logged-out page
   { page: "villages", name: "states", path: "/dev/villages" },
   { page: "villages", name: "logged-out", path: "/villages" },
