@@ -72,7 +72,7 @@ function subscribeNight(cb: () => void) {
   };
 }
 
-function useNightHours(): [NightHours, (h: NightHours) => void] {
+export function useNightHours(): [NightHours, (h: NightHours) => void] {
   // Server and first client render use the default, so the markup matches
   const saved = useSyncExternalStore(subscribeNight, readSavedNight, () => "");
   let hours: NightHours = DEFAULT_NIGHT;

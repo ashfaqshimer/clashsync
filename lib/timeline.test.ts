@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nightBands, nightWindow, planNight, stripPosition } from "./timeline";
+import { isEvening, nightBands, nightWindow, planNight, stripPosition } from "./timeline";
 
 const H = 3600;
 const MIDNIGHT = 1_794_700_800; // a UTC midnight (multiple of 86400)
@@ -50,5 +50,27 @@ describe("strip", () => {
       { start: 0, end: 5 / 24 },
       { start: 21 / 24, end: 1 },
     ]);
+  });
+});
+
+describe("isEvening", () => {
+  it("is true in the 3h before bedtime", () => {
+    expect(isEvening(MIDNIGHT + 20 * H, 0)).toBe(true);
+    expect(isEvening(MIDNIGHT + 22.9 * H, 0)).toBe(true);
+  });
+
+  it("is false earlier in the day and once asleep", () => {
+    expect(isEvening(MIDNIGHT + 19.9 * H, 0)).toBe(false);
+    expect(isEvening(MIDNIGHT + 10 * H, 0)).toBe(false);
+    expect(isEvening(MIDNIGHT + 23 * H, 0)).toBe(false);
+    expect(isEvening(MIDNIGHT + 2 * H, 0)).toBe(false);
+  });
+
+  it("follows a custom bedtime across midnight", () => {
+    // Asleep at 2 AM: evening runs 11 PM → 2 AM
+    const late = { startHour: 2, endHour: 9 };
+    expect(isEvening(MIDNIGHT + 23.5 * H, 0, late)).toBe(true);
+    expect(isEvening(MIDNIGHT + 25 * H, 0, late)).toBe(true);
+    expect(isEvening(MIDNIGHT + 21 * H, 0, late)).toBe(false);
   });
 });

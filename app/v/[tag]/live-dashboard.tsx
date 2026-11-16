@@ -24,7 +24,8 @@ import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { AlertsCard } from "./alerts-card";
 import { OwnershipCard, type OwnershipView } from "./ownership-card";
 import { PotionBar } from "./potion-bar";
-import { TonightCard } from "./tonight-card";
+import { TonightCard, useNightHours } from "./tonight-card";
+import { isEvening } from "@/lib/timeline";
 import { useTabCountdown } from "./use-tab-countdown";
 import { useNow } from "./use-now";
 import type { LucideIcon } from "lucide-react";
@@ -77,6 +78,10 @@ export function LiveDashboard({
   profile?: ReactNode;
 }) {
   const now = useNow();
+  const [nightHours] = useNightHours();
+  // "Tonight" sits below the upgrade lists, and moves above them in the hours
+  // before the viewer's bedtime. Until the clock is known (SSR) it stays below.
+  const evening = now !== null && isEvening(now, -new Date().getTimezoneOffset(), nightHours);
   const [updateOpen, setUpdateOpen] = useState(false);
   const canUpdate = canEdit && !demo;
 
@@ -133,6 +138,16 @@ export function LiveDashboard({
     return () => io.disconnect();
   }, []);
   const showStickyUpdate = canUpdate && !updateOpen && !headerVisible;
+
+  const tonight = (
+    <TonightCard
+      now={now}
+      rows={village.upgrades.filter(isRunning).map((u) => {
+        const { tone, Icon } = GROUPS[groupOf(u)];
+        return { id: u.id, label: upgradeLabel(u), tone, Icon, finish: u.currentFinishTime };
+      })}
+    />
+  );
 
   return (
     <div className="space-y-6">
@@ -260,15 +275,7 @@ export function LiveDashboard({
         <SlotTile group="builderBase" busy={bbBusy} now={now} idleText="Nothing upgrading" />
       </div>
 
-      <TonightCard
-        now={now}
-        rows={village.upgrades
-          .filter((u) => now === null || u.currentFinishTime > now)
-          .map((u) => {
-            const { tone, Icon } = GROUPS[groupOf(u)];
-            return { id: u.id, label: upgradeLabel(u), tone, Icon, finish: u.currentFinishTime };
-          })}
-      />
+      {evening && tonight}
 
       {/* Upgrade lists */}
       {village.upgrades.length === 0 ? (
@@ -288,6 +295,8 @@ export function LiveDashboard({
             ))}
         </div>
       )}
+
+      {!evening && tonight}
 
       <PotionBar
         village={village}

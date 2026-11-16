@@ -101,3 +101,20 @@ export function nightBands(
   }
   return bands;
 }
+
+/** How long before bedtime the dashboard moves the "Tonight" card to the top. */
+export const EVENING_LEAD_HOURS = 3;
+
+/**
+ * True in the hours just before the viewer's bedtime, when planning the night
+ * is the most useful thing on the dashboard. False once they're asleep.
+ */
+export function isEvening(
+  now: number,
+  offsetMinutes: number,
+  hours: NightHours = DEFAULT_NIGHT,
+  leadHours = EVENING_LEAD_HOURS
+): boolean {
+  const { start } = nightWindow(now, offsetMinutes, hours);
+  return now < start && start - now <= leadHours * 3600;
+}

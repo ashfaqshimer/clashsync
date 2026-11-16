@@ -50,7 +50,7 @@ app/
   api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
   api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
   v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers). Owners get "Update timers"
-                                (in-place paste, rejects other villages' exports), a setup checklist, a "done" prompt, the "Tonight" card (tonight-card.tsx: what goes idle overnight),
+                                (in-place paste, rejects other villages' exports), a setup checklist, a "done" prompt, the "Tonight" card (tonight-card.tsx: what goes idle overnight; below the upgrade lists, moved above them in the 3h before the viewer's bedtime),
                                 a live countdown in the tab title (use-tab-countdown.ts) and a sticky mobile Update button; profile line = cached Supercell API
 lib/
   parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side
@@ -68,7 +68,7 @@ lib/
   app-url.ts       appUrl(): public base URL (links in messages, auth baseURL)
   village.ts       getVillage(tag) — server data access for the dashboard
   village-status.ts formatAge() ("3h 12m ago") + villageStatus(): idle builders / stale export / needs attention for list rows. Pure
-  timeline.ts      Pure math for the "Tonight" card: the viewer's night window (default 23:00–07:00, adjustable), before-bed / overnight / all-night buckets with idle time, 24h strip positions
+  timeline.ts      Pure math for the "Tonight" card: the viewer's night window (default 23:00–07:00, adjustable), before-bed / overnight / all-night buckets with idle time, 24h strip positions, isEvening() for the card's placement
   boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
   upgrade-label.ts upgradeLabel(): display name + "(Gear-Up)" / "(Goblin/Extra)". The DB stores the plain name
   secrets.ts       sealWebhookUrl / openWebhookUrl: encryption at rest keyed from BETTER_AUTH_SECRET (server only)
