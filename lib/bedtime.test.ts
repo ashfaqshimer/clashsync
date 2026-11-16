@@ -44,10 +44,11 @@ describe("planBedtime", () => {
       { builder: { level: 8, readyAt: 0 }, lab: { level: 12, readyAt: 0 } }
     );
     expect(plan.fixes.early).toEqual([expect.objectContaining({ kind: "helper", helper: "builder" })]);
-    expect(plan.fixes.late).toBeUndefined();
+    // The Apprentice is taken, so a Builder Potion is the way to fix the other one
+    expect(plan.fixes.late?.map((f) => f.kind)).toEqual(["potion"]);
     expect(plan.fixes.lab).toEqual([expect.objectContaining({ kind: "helper", helper: "lab" })]);
     expect(plan.fixes.pet).toEqual([{ kind: "stayUp", until: BED + H }]);
-    expect(plan.fixable).toBe(3);
+    expect(plan.fixable).toBe(4);
   });
 
   it("saves the helper for an upgrade that staying up can't fix", () => {
@@ -76,5 +77,45 @@ describe("planBedtime", () => {
       // Ready tomorrow afternoon: only 4h of research left by then, under 13h
       { helper: "lab", ready: false, readyAt: BED + 16 * H, suggestId: null },
     ]);
+  });
+});
+
+describe("planBedtime potions", () => {
+  const evening = BED - 6 * H; // 5 PM
+  const potionOf = (plan: ReturnType<typeof planBedtime>, id: string) => plan.fixes[id]?.find((f) => f.kind === "potion");
+
+  it("suggests a Builder Potion that pulls an overnight finish before bed", () => {
+    // 4 AM finish: drink by 6 PM (10h left = full boost) and it's done at 7 PM
+    const plan = planBedtime([item("a", 5), item("b", 20)], night, evening);
+    expect(plan.fixes.a).toEqual([
+      { kind: "potion", potion: "BUILDER_POTION", useAt: BED - 5 * H, newFinish: BED - 4 * H, wasted: false, movesIntoNight: [] },
+    ]);
+    expect(plan.fixable).toBe(1);
+  });
+
+  it("names upgrades the potion would move into the night, and skips it when the night gets no better", () => {
+    const worth = planBedtime([item("a", 5), item("c", 16)], night, evening);
+    expect(potionOf(worth, "a")).toMatchObject({ movesIntoNight: ["c"] });
+    // c would sit idle as long as a does now: no gain
+    expect(planBedtime([item("a", 5), item("c", 14)], night, evening).fixes).toEqual({});
+  });
+
+  it("flags waste on builders that are nearly done", () => {
+    expect(potionOf(planBedtime([item("a", 5), item("d", -4)], night, evening), "a")).toMatchObject({ wasted: true });
+  });
+
+  it("only offers a potion where no free fix exists", () => {
+    const plan = planBedtime([item("a", 5)], night, evening, { builder: { level: 8, readyAt: 0 } });
+    expect(plan.fixes.a?.map((f) => f.kind)).toEqual(["helper"]);
+  });
+
+  it("starts after a potion that is still running", () => {
+    expect(planBedtime([item("a", 5)], night, evening, {}, { builder: BED - 4 * H }).fixes).toEqual({});
+  });
+
+  it("uses the Research Potion for the lab", () => {
+    const plan = planBedtime([item("r", 7, "lab"), item("pet", 2, null)], night, BED - 20 * H);
+    expect(plan.fixes.r).toEqual([expect.objectContaining({ potion: "RESEARCH_POTION", newFinish: BED - 16 * H })]);
+    expect(plan.fixes.pet).toBeUndefined();
   });
 });

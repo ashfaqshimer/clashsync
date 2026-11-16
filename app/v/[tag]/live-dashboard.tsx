@@ -159,7 +159,8 @@ export function LiveDashboard({
       extra: u.isExtraSlot,
     };
   });
-  const tonight = <TonightCard now={now} rows={tonightRows} helpers={village.helpers} />;
+  const boostEndsAt = { builder: village.builderBoostEndsAt, lab: village.labBoostEndsAt };
+  const tonight = <TonightCard now={now} rows={tonightRows} helpers={village.helpers} boostEndsAt={boostEndsAt} />;
 
   // ── Next moves, most urgent first (the card shows the top few) ──
   // One update button is enough: later moves that need it just say so in words
@@ -200,11 +201,13 @@ export function LiveDashboard({
     if (evening) {
       const night = nightWindow(now, -new Date().getTimezoneOffset(), nightHours);
       const plan = planNight(tonightRows, night, now);
-      const bedtime = planBedtime(tonightRows, night, now, village.helpers);
-      // Best single fix: a helper beats staying up
+      const bedtime = planBedtime(tonightRows, night, now, village.helpers, boostEndsAt);
+      // Best single fix: a helper, then staying up, then a potion (costs one)
+      const rank = { helper: 0, stayUp: 1, potion: 2 } as const;
       const best = plan.overnight
         .flatMap(({ item }) => (bedtime.fixes[item.id] ?? []).map((fix) => ({ item, fix })))
-        .sort((a, b) => Number(b.fix.kind === "helper") - Number(a.fix.kind === "helper"))[0];
+        .sort((a, b) => rank[a.fix.kind] - rank[b.fix.kind])[0];
+      const labelOf = (id: string) => tonightRows.find((r) => r.id === id)?.label ?? null;
       if (plan.overnight.length > 0) {
         moves.push({
           id: "tonight",
@@ -212,7 +215,7 @@ export function LiveDashboard({
           icon: <Moon />,
           title: `${plan.overnight.length} ${plan.overnight.length === 1 ? "slot goes" : "slots go"} idle overnight`,
           body: best
-            ? `${best.item.label}: ${fixText(best.fix).replace(/^./, (c) => c.toLowerCase())}.`
+            ? `${best.item.label}: ${fixText(best.fix, labelOf).replace(/^./, (c) => c.toLowerCase())}.`
             : "See what finishes while you sleep and what to start before bed.",
           action: (
             <a href="#tonight" className={buttonClass({ size: "sm", variant: "stone" })}>

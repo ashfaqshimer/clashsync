@@ -69,7 +69,7 @@ lib/
   village.ts       getVillage(tag) — server data access for the dashboard
   village-status.ts formatAge() ("3h 12m ago") + villageStatus(): idle builders / stale export / needs attention for list rows. Pure
   timeline.ts      Pure math for the "Tonight" card: the viewer's night window (default 23:00–07:00, adjustable), before-bed / overnight / all-night buckets with idle time, 24h strip positions, isEvening() for the card's placement
-  bedtime.ts       planBedtime(): free fixes for overnight idle slots (stay up ≤1h, Builder's Apprentice / Lab Assistant) and helper tips. Pure
+  bedtime.ts       planBedtime(): fixes for overnight idle slots (stay up ≤1h, Builder's Apprentice / Lab Assistant, then Builder/Research Potion) and helper tips. Pure
   boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
   upgrade-label.ts upgradeLabel(): display name + "(Gear-Up)" / "(Goblin/Extra)". The DB stores the plain name
   secrets.ts       sealWebhookUrl / openWebhookUrl: encryption at rest keyed from BETTER_AUTH_SECRET (server only)
@@ -93,7 +93,7 @@ scripts/           screenshots.mjs, setup-qstash-schedule.ts, db-baseline.ts, se
 
 ## Roadmap / not built yet
 
-Bedtime plan, Phase 1 done: the Tonight card shows fixes under each overnight row and the evening "Next moves" item names the best one (`lib/bedtime.ts`). A helper at level N works for 1h at (N+1)× speed, so it takes N hours off and is only suggested when ≥ N+1h are left (no waste) and it pulls the finish before bedtime; each helper goes to one upgrade, preferring ones staying up can't fix. Unused helpers get a "use it on <longest upgrade>" tip. Next: Phase 2 potions (avoid wasting a Builder/Research Potion), Phase 3 a "Bedtime check" Discord message and an "I used my helper" button. Gem costs aren't shown: no reliable current price curve.
+Bedtime plan, Phase 1 done: the Tonight card shows fixes under each overnight row and the evening "Next moves" item names the best one (`lib/bedtime.ts`). A helper at level N works for 1h at (N+1)× speed, so it takes N hours off and is only suggested when ≥ N+1h are left (no waste) and it pulls the finish before bedtime; each helper goes to one upgrade, preferring ones staying up can't fix. Unused helpers get a "use it on <longest upgrade>" tip. Phase 2 done: potions come after free fixes, only for overnight upgrades with none. The Builder Potion (all home builders) / Research Potion (lab) is simulated on every upgrade in its slot from `max(now, *_boost_ends_at)`, drunk at the latest full-value time, and suggested only if total overnight idle goes down; the line flags waste and upgrades it would move into the night. Next: Phase 3 a "Bedtime check" Discord message and an "I used my helper" button. Gem costs aren't shown: no reliable current price curve.
 
 Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync API, Supercell player lookup), Phase 4 (`/v/[tag]` live dashboard, stale-export warning, idle builder/lab/pet status, API-token ownership). Phase 3 done (done after Phase 6): Vitest for the pure modules, atomic `db.batch` sync, a committed `drizzle/` migration history starting at `0000_baseline`, and `app/page.tsx` split into `app/_home/`.
 

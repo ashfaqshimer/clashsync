@@ -8,7 +8,13 @@
  * helpers share one ~23h cooldown (the export's `helper_cooldown`). If the
  * upgrade has less than level + 1 hours left, the rest of that hour is wasted,
  * so a helper is only suggested where its full value counts.
+ *
+ * Potions come after the free fixes: a Builder Potion speeds up every home
+ * builder at once (and a Research Potion the lab), so it is simulated on all
+ * of them and only suggested when the night's total idle time goes down.
  */
+
+import { boostedFinishTime, POTIONS, type PotionKind } from "./boosts";
 
 export type HelperKind = "builder" | "lab";
 
@@ -42,7 +48,7 @@ export const STAY_UP_MAX_SECONDS = 3600;
 export interface BedtimeItem {
   id: string;
   finish: number;
-  /** Which helper can work on it; null for pets, Builder Base and the like. */
+  /** Which helper and potion can speed it up: home builder or lab. Null for pets, Builder Base and the like. */
   helper: HelperKind | null;
   /** Goblin / bonus slot: not a slot the player loses overnight, so no fixes. */
   extra?: boolean;
@@ -52,7 +58,16 @@ export type BedtimeFix =
   /** Finishes soon after bedtime: stay up and start the next upgrade. */
   | { kind: "stayUp"; until: number }
   /** Use the helper (any time before `useBy`) and it finishes before bed instead, at `newFinish`. */
-  | { kind: "helper"; helper: HelperKind; useBy: number; newFinish: number };
+  | { kind: "helper"; helper: HelperKind; useBy: number; newFinish: number }
+  /**
+   * Drink a potion at `useAt` and it finishes before bed, at `newFinish`.
+   * `wasted`: other upgrades are too close to done to get the full boost.
+   * `movesIntoNight`: upgrades that would then finish while asleep instead of after.
+   */
+  | { kind: "potion"; potion: PotionKind; useAt: number; newFinish: number; wasted: boolean; movesIntoNight: string[] };
+
+/** Which potion speeds up which slot. */
+export const SLOT_POTION: Record<HelperKind, PotionKind> = { builder: "BUILDER_POTION", lab: "RESEARCH_POTION" };
 
 export interface HelperTip {
   helper: HelperKind;
@@ -81,7 +96,9 @@ export function planBedtime(
   items: BedtimeItem[],
   night: { start: number; end: number },
   now: number,
-  helpers: Helpers = {}
+  helpers: Helpers = {},
+  /** When a potion already running ends (the next one starts then). */
+  boostEndsAt: Partial<Record<HelperKind, number | null>> = {}
 ): BedtimePlan {
   const running = items.filter((i) => i.finish > now);
   const overnight = running
@@ -117,6 +134,11 @@ export function planBedtime(
     add(best.item.id, { kind: "helper", helper: kind, useBy: best.useBy, newFinish: best.newFinish });
   }
 
+  for (const kind of ["builder", "lab"] as const) {
+    const fix = potionFix(kind, running, overnight, fixes, night, Math.max(now, boostEndsAt[kind] ?? 0));
+    if (fix) for (const id of fix.ids) add(id, fix.fix);
+  }
+
   const helperTips: HelperTip[] = [];
   for (const kind of ["builder", "lab"] as const) {
     const state = helpers[kind];
@@ -135,4 +157,54 @@ export function planBedtime(
     fixable: overnight.filter((i) => fixes[i.id]?.length).length,
     helperTips,
   };
+}
+
+/** Seconds asleep-and-idle for a finish (0 if it isn't overnight). */
+function idleAt(finish: number, night: { start: number; end: number }): number {
+  return finish >= night.start && finish <= night.end ? night.end - finish : 0;
+}
+
+/**
+ * Best time to drink the slot's potion, if it pulls overnight finishes that
+ * have no free fix before bed and lowers the night's total idle time.
+ */
+function potionFix(
+  kind: HelperKind,
+  running: BedtimeItem[],
+  overnight: BedtimeItem[],
+  fixes: Record<string, BedtimeFix[]>,
+  night: { start: number; end: number },
+  from: number
+): { ids: string[]; fix: BedtimeFix } | null {
+  const potion = SLOT_POTION[kind];
+  const { multiplier, durationSeconds } = POTIONS[potion];
+  const saves = (multiplier - 1) * durationSeconds;
+  const slot = running.filter((i) => i.helper === kind);
+  const main = slot.filter((i) => !i.extra);
+  const idleBefore = main.reduce((sum, i) => sum + idleAt(i.finish, night), 0);
+
+  let best: { ids: string[]; fix: Extract<BedtimeFix, { kind: "potion" }>; gain: number } | null = null;
+  for (const target of overnight) {
+    if (target.helper !== kind || fixes[target.id]) continue;
+    // Latest moment it still gets the full boost; drinking later only helps less
+    const useAt = target.finish - saves - durationSeconds;
+    if (useAt < from || target.finish - saves > night.start) continue;
+    const after = new Map(slot.map((i) => [i.id, boostedFinishTime(i.finish, useAt, multiplier, durationSeconds)]));
+    const idleAfter = main.reduce((sum, i) => sum + idleAt(after.get(i.id)!, night), 0);
+    const gain = idleBefore - idleAfter;
+    if (gain <= 0 || (best && gain <= best.gain)) continue;
+    best = {
+      gain,
+      ids: overnight.filter((i) => i.helper === kind && !fixes[i.id] && after.get(i.id)! < night.start).map((i) => i.id),
+      fix: {
+        kind: "potion",
+        potion,
+        useAt,
+        newFinish: after.get(target.id)!,
+        wasted: slot.some((i) => i.finish > useAt && i.finish - useAt < multiplier * durationSeconds),
+        movesIntoNight: main.filter((i) => idleAt(i.finish, night) === 0 && idleAt(after.get(i.id)!, night) > 0).map((i) => i.id),
+      },
+    };
+  }
+  return best && { ids: best.ids, fix: best.fix };
 }

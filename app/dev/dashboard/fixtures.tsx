@@ -161,7 +161,7 @@ export function DashboardFixtures() {
         />
       </Section>
 
-      <Section title="Tonight · bedtime fixes: stay up, Builder's Apprentice, Lab Assistant later, pet (no fix)">
+      <Section title="Tonight · bedtime fixes: stay up, Builder's Apprentice, Builder Potion, Lab Assistant later, pet (no fix)">
         <TonightCard now={now} rows={tonightRows(now)} helpers={{ builder: { level: 8, readyAt: now - 3600 }, lab: { level: 12, readyAt: now + 26 * 3600 } }} />
       </Section>
     </div>
@@ -185,6 +185,8 @@ function tonightRows(now: number): TonightRow[] {
     row("it", "Inferno Tower", start + 40 * 60, "builder"),
     // A lvl 8 Apprentice pulls a 3 AM finish before bed if used by 6 PM
     row("aq", "Archer Queen", start + 4 * 3600, "builder"),
+    // Apprentice is taken: a Builder Potion by 7 PM fixes this one
+    row("ea", "Eagle Artillery", start + 6 * 3600, "builder"),
     row("un", "Unicorn", start + 3 * 3600, null),
     row("ed", "Electro Dragon", end + 30 * 3600, "lab"),
   ].filter((r) => r.finish > now);

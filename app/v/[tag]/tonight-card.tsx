@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore, type ReactNode } from "react";
-import { CheckCircle2, CornerDownRight, FlaskConical, Hammer, Moon, type LucideIcon } from "lucide-react";
+import { CheckCircle2, CornerDownRight, FlaskConical, FlaskRound, Hammer, Moon, type LucideIcon } from "lucide-react";
 import {
   HELPER_NAMES,
   helperSavesSeconds,
@@ -11,6 +11,7 @@ import {
   type Helpers,
   type HelperTip,
 } from "@/lib/bedtime";
+import { POTIONS } from "@/lib/boosts";
 import {
   DEFAULT_NIGHT,
   TIMELINE_WINDOW_SECONDS,
@@ -65,11 +66,33 @@ function idleText(seconds: number) {
   return h < 1 ? "under 1h" : `${h}h`;
 }
 
-/** One line per fix, player-friendly. */
-export function fixText(fix: BedtimeFix): string {
-  return fix.kind === "stayUp"
-    ? `Stay up until ${clock(fix.until)} and start the next one`
-    : `Use your ${HELPER_NAMES[fix.helper]} by ${clock(fix.useBy)}: done at ${clock(fix.newFinish)}, before bed`;
+/** One line per fix, player-friendly. `labelOf` names upgrades a potion would move into the night. */
+export function fixText(fix: BedtimeFix, labelOf: (id: string) => string | null = () => null): string {
+  switch (fix.kind) {
+    case "stayUp":
+      return `Stay up until ${clock(fix.until)} and start the next one`;
+    case "helper":
+      return `Use your ${HELPER_NAMES[fix.helper]} by ${clock(fix.useBy)}: done at ${clock(fix.newFinish)}, before bed`;
+    case "potion": {
+      const moved = fix.movesIntoNight.map(labelOf).filter(Boolean);
+      return [
+        `Drink a ${POTIONS[fix.potion].label} at ${clock(fix.useAt)}: done at ${clock(fix.newFinish)}, before bed`,
+        fix.wasted && " (some upgrades are too close to done to get all of it)",
+        moved.length > 0 && `, but ${moved.join(" and ")} would then finish overnight`,
+      ]
+        .filter(Boolean)
+        .join("");
+    }
+  }
+}
+
+/** "2 of them can be fixed for free, 1 more with a potion." */
+function fixSummary(overnight: number, free: number, potionOnly: number): string {
+  if (free + potionOnly === 0) return "Starting something longer before bed keeps them busy.";
+  const all = free + potionOnly === overnight;
+  const subject = (n: number) => (n === overnight ? (overnight === 1 ? "It" : "All of them") : `${n} of them`);
+  if (free === 0) return `${subject(potionOnly)} can be fixed with a potion, see below.`;
+  return `${subject(free)} can be fixed for free${potionOnly > 0 ? `, ${all && free + potionOnly > 1 ? "the rest" : `${potionOnly} more`} with a potion` : ""}, see below.`;
 }
 
 /** The viewer's sleep hours, remembered in this browser only (a convenience, not account data). */
@@ -122,10 +145,13 @@ export function TonightCard({
   rows,
   now,
   helpers = {},
+  boostEndsAt = {},
 }: {
   rows: TonightRow[];
   now: number | null;
   helpers?: Helpers;
+  /** When a running Builder / Research Potion ends. */
+  boostEndsAt?: Partial<Record<HelperKind, number | null>>;
 }) {
   const [hours, setHours] = useNightHours();
   if (rows.length === 0) return null;
@@ -141,7 +167,7 @@ export function TonightCard({
         title={<span id="tonight-title">Tonight</span>}
         actions={<NightPicker hours={hours} onChange={setHours} />}
       />
-      {now === null ? <div className="h-40" aria-hidden /> : <TonightBody rows={rows} now={now} hours={hours} helpers={helpers} />}
+      {now === null ? <div className="h-40" aria-hidden /> : <TonightBody rows={rows} now={now} hours={hours} helpers={helpers} boostEndsAt={boostEndsAt} />}
     </Card>
   );
 }
@@ -181,17 +207,21 @@ function TonightBody({
   now,
   hours,
   helpers,
+  boostEndsAt,
 }: {
   rows: TonightRow[];
   now: number;
   hours: NightHours;
   helpers: Helpers;
+  boostEndsAt: Partial<Record<HelperKind, number | null>>;
 }) {
   const offset = -new Date().getTimezoneOffset();
   const night = nightWindow(now, offset, hours);
   const plan = planNight(rows, night, now);
-  const bedtimePlan = planBedtime(rows, night, now, helpers);
+  const bedtimePlan = planBedtime(rows, night, now, helpers, boostEndsAt);
   const labelOf = (id: string | null) => rows.find((r) => r.id === id)?.label ?? null;
+  // Free fixes vs. ones that cost a potion, for the headline
+  const freeFixable = plan.overnight.filter(({ item }) => bedtimePlan.fixes[item.id]?.some((f) => f.kind !== "potion")).length;
   const asleep = now >= night.start;
   const bedtime = hourName(hours.startHour);
   const wake = hourName(hours.endHour);
@@ -201,10 +231,7 @@ function TonightBody({
       ? {
           tone: "text-gold-300",
           title: `${plan.overnight.length} ${plan.overnight.length === 1 ? "slot goes" : "slots go"} idle overnight`,
-          body:
-            bedtimePlan.fixable > 0
-              ? `Idle for about ${idleText(plan.idleSeconds)} in total before you're up at ${wake}. ${bedtimePlan.fixable === plan.overnight.length ? (plan.overnight.length === 1 ? "It" : "All of them") : `${bedtimePlan.fixable} of them`} can be fixed for free, see below.`
-              : `Idle for about ${idleText(plan.idleSeconds)} in total before you're up at ${wake}. Starting something longer before bed keeps them busy.`,
+          body: `Idle for about ${idleText(plan.idleSeconds)} in total before you're up at ${wake}. ${fixSummary(plan.overnight.length, freeFixable, bedtimePlan.fixable - freeFixable)}`,
         }
       : plan.beforeBed.length > 0
         ? {
@@ -251,10 +278,20 @@ function TonightBody({
                   </span>
                 }
               >
-                {bedtimePlan.fixes[item.id]?.map((fix) => (
-                  <li key={fix.kind} className="flex items-start gap-1.5 text-xs font-bold text-grass">
-                    <CornerDownRight className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden />
-                    <span>{fixText(fix)}</span>
+                {bedtimePlan.fixes[item.id]?.map((fix, i) => (
+                  <li
+                    key={fix.kind}
+                    className={`flex items-start gap-1.5 text-xs font-bold ${fix.kind === "potion" ? "text-gold-200" : "text-grass"}`}
+                  >
+                    {fix.kind === "potion" ? (
+                      <FlaskRound className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden />
+                    ) : (
+                      <CornerDownRight className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden />
+                    )}
+                    <span>
+                      {i > 0 && "Or: "}
+                      {fixText(fix, labelOf)}
+                    </span>
                   </li>
                 ))}
               </Row>
