@@ -26,7 +26,8 @@ import type { VillageSnapshot, VillageUpgrade } from "@/lib/village";
 import { AlertsCard } from "./alerts-card";
 import { OwnershipCard, type OwnershipView } from "./ownership-card";
 import { PotionBar } from "./potion-bar";
-import { TonightCard, useNightHours } from "./tonight-card";
+import { TonightCard, fixText, useNightHours, type TonightRow } from "./tonight-card";
+import { planBedtime } from "@/lib/bedtime";
 import { NextMoves, type NextMove } from "./next-moves";
 import { AccountSection } from "./account-section";
 import { DiscordLoginButton } from "@/app/_components/account-menu";
@@ -144,15 +145,21 @@ export function LiveDashboard({
   }, []);
   const showStickyUpdate = canUpdate && !updateOpen && !headerVisible;
 
-  const tonight = (
-    <TonightCard
-      now={now}
-      rows={village.upgrades.filter(isRunning).map((u) => {
-        const { tone, Icon } = GROUPS[groupOf(u)];
-        return { id: u.id, label: upgradeLabel(u), tone, Icon, finish: u.currentFinishTime };
-      })}
-    />
-  );
+  const tonightRows: TonightRow[] = village.upgrades.filter(isRunning).map((u) => {
+    const { tone, Icon } = GROUPS[groupOf(u)];
+    return {
+      id: u.id,
+      label: upgradeLabel(u),
+      tone,
+      Icon,
+      finish: u.currentFinishTime,
+      // Helpers work on home-village builder upgrades and lab research only
+      helper:
+        u.villageType !== "HOME" ? null : u.category === "BUILDER" ? "builder" : u.category === "LABORATORY" ? "lab" : null,
+      extra: u.isExtraSlot,
+    };
+  });
+  const tonight = <TonightCard now={now} rows={tonightRows} helpers={village.helpers} />;
 
   // ── Next moves, most urgent first (the card shows the top few) ──
   // One update button is enough: later moves that need it just say so in words
@@ -191,18 +198,22 @@ export function LiveDashboard({
       });
     }
     if (evening) {
-      const plan = planNight(
-        village.upgrades.map((u) => ({ finish: u.currentFinishTime })),
-        nightWindow(now, -new Date().getTimezoneOffset(), nightHours),
-        now
-      );
+      const night = nightWindow(now, -new Date().getTimezoneOffset(), nightHours);
+      const plan = planNight(tonightRows, night, now);
+      const bedtime = planBedtime(tonightRows, night, now, village.helpers);
+      // Best single fix: a helper beats staying up
+      const best = plan.overnight
+        .flatMap(({ item }) => (bedtime.fixes[item.id] ?? []).map((fix) => ({ item, fix })))
+        .sort((a, b) => Number(b.fix.kind === "helper") - Number(a.fix.kind === "helper"))[0];
       if (plan.overnight.length > 0) {
         moves.push({
           id: "tonight",
           tone: "sky",
           icon: <Moon />,
           title: `${plan.overnight.length} ${plan.overnight.length === 1 ? "slot goes" : "slots go"} idle overnight`,
-          body: "See what finishes while you sleep and what to start before bed.",
+          body: best
+            ? `${best.item.label}: ${fixText(best.fix).replace(/^./, (c) => c.toLowerCase())}.`
+            : "See what finishes while you sleep and what to start before bed.",
           action: (
             <a href="#tonight" className={buttonClass({ size: "sm", variant: "stone" })}>
               See tonight

@@ -69,6 +69,7 @@ lib/
   village.ts       getVillage(tag) — server data access for the dashboard
   village-status.ts formatAge() ("3h 12m ago") + villageStatus(): idle builders / stale export / needs attention for list rows. Pure
   timeline.ts      Pure math for the "Tonight" card: the viewer's night window (default 23:00–07:00, adjustable), before-bed / overnight / all-night buckets with idle time, 24h strip positions, isEvening() for the card's placement
+  bedtime.ts       planBedtime(): free fixes for overnight idle slots (stay up ≤1h, Builder's Apprentice / Lab Assistant) and helper tips. Pure
   boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
   upgrade-label.ts upgradeLabel(): display name + "(Gear-Up)" / "(Goblin/Extra)". The DB stores the plain name
   secrets.ts       sealWebhookUrl / openWebhookUrl: encryption at rest keyed from BETTER_AUTH_SECRET (server only)
@@ -77,7 +78,7 @@ scripts/           screenshots.mjs, setup-qstash-schedule.ts, db-baseline.ts, se
 
 ## Domain rules (important)
 
-- **Export format:** top-level `tag`, `timestamp` (Unix seconds) and arrays `buildings`, `heroes`, `units`, `spells`, `pets`, `traps`, plus builder-base twins with a `2` suffix (`buildings2`, `heroes2`, `units2`, `traps2`). An item is an active upgrade when `timer > 0`. `timer` is the number of seconds left **at export time**. `data` is the entity ID, `lvl` is the current level (target = `lvl + 1`), `gear_up` marks a gear-up, and `extra` marks the goblin builder or an extra slot.
+- **Export format:** top-level `tag`, `timestamp` (Unix seconds) and arrays `buildings`, `heroes`, `units`, `spells`, `pets`, `traps`, plus builder-base twins with a `2` suffix (`buildings2`, `heroes2`, `units2`, `traps2`). An item is an active upgrade when `timer > 0`. `timer` is the number of seconds left **at export time**. `data` is the entity ID, `lvl` is the current level (target = `lvl + 1`), `gear_up` marks a gear-up, and `extra` marks the goblin builder or an extra slot (not helper work). `helpers[]`: `data` 93000000 = Builder's Apprentice, 93000001 = Lab Assistant (the other two don't speed up timers), `lvl`, `helper_cooldown` = seconds until it can be assigned again (all helpers share one ~23h cooldown). Stored as `villages.apprentice_*` / `lab_assistant_*` (level + ready-at epoch).
 - **Time math:** `finish = exportTimestamp + timer`, all in **UTC Unix seconds** (not ms). If `timestamp` is missing or bogus, the parser falls back to "now". Store epochs; format only for display.
 - **Categories:** `BUILDER | LABORATORY | PET_HOUSE | BUILDER_BASE | OTHER`. Heroes count as `BUILDER` (home) and `BUILDER_BASE` (BB). `units` and `spells` count as `LABORATORY`, and `pets` as `PET_HOUSE`. Unknown IDs go through `resolveEntity` heuristics, so add new IDs to `CLASH_ENTITIES` when they show up.
 - **`originalFinishTime` vs `currentFinishTime`:** the two are equal at sync. Only `currentFinishTime` should change (for example, from a potion). `originalFinishTime` keeps the time from the export.
@@ -91,6 +92,8 @@ scripts/           screenshots.mjs, setup-qstash-schedule.ts, db-baseline.ts, se
 - **Dashboard timing:** the server never computes "now". `useNow()` returns `null` during SSR/hydration so markup matches, then ticks every second on the client. Builder totals come from the Builder's Hut entries (`villages.builder_count`, summed over every hut entry because an upgrading hut gets its own entry with no `cnt`). B.O.B. isn't identifiable in the export, so the UI uses `max(builder_count, busy)`, and without a count falls back to "N busy / next free in…". Goblin (`extra`) upgrades don't count as busy; the tile adds "+ Goblin" instead.
 
 ## Roadmap / not built yet
+
+Bedtime plan, Phase 1 done: the Tonight card shows fixes under each overnight row and the evening "Next moves" item names the best one (`lib/bedtime.ts`). A helper at level N works for 1h at (N+1)× speed, so it takes N hours off and is only suggested when ≥ N+1h are left (no waste) and it pulls the finish before bedtime; each helper goes to one upgrade, preferring ones staying up can't fix. Unused helpers get a "use it on <longest upgrade>" tip. Next: Phase 2 potions (avoid wasting a Builder/Research Potion), Phase 3 a "Bedtime check" Discord message and an "I used my helper" button. Gem costs aren't shown: no reliable current price curve.
 
 Done: Phase 1 (parser + upgrades UI), Phase 2 (Neon/Drizzle persistence, sync API, Supercell player lookup), Phase 4 (`/v/[tag]` live dashboard, stale-export warning, idle builder/lab/pet status, API-token ownership). Phase 3 done (done after Phase 6): Vitest for the pure modules, atomic `db.batch` sync, a committed `drizzle/` migration history starting at `0000_baseline`, and `app/page.tsx` split into `app/_home/`.
 

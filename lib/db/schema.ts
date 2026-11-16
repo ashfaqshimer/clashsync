@@ -132,6 +132,11 @@ export const villages = pgTable(
     // Potions running (Unix seconds); the next potion starts when these end
     builderBoostEndsAt: bigint("builder_boost_ends_at", { mode: "number" }),
     labBoostEndsAt: bigint("lab_boost_ends_at", { mode: "number" }),
+    // Helper Hut (null = not unlocked): level, and when it can next be assigned (Unix seconds)
+    apprenticeLevel: integer("apprentice_level"),
+    apprenticeReadyAt: bigint("apprentice_ready_at", { mode: "number" }),
+    labAssistantLevel: integer("lab_assistant_level"),
+    labAssistantReadyAt: bigint("lab_assistant_ready_at", { mode: "number" }),
 
     // Alerts (owner only)
     // Encrypted with lib/secrets.ts (it can post to the channel). Never sent to the client.

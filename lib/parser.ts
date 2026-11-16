@@ -1,4 +1,5 @@
 import { boostedFinishTime, POTIONS } from "./boosts";
+import { HELPER_IDS, type HelperKind } from "./bedtime";
 import { resolveEntity } from "./clash-data";
 import { ActiveUpgrade, ParseResult, RawExportVillage, RawVillageItem } from "./types";
 
@@ -178,6 +179,18 @@ export function parseVillageExport(rawJson: string): ParseResult {
   );
   const builderHutCount = hutTotal > 0 ? hutTotal : undefined;
 
+  // Helper Hut: level, and `helper_cooldown` = seconds until it can be assigned again
+  const helpers: NonNullable<ParseResult["helpers"]> = {};
+  for (const kind of Object.keys(HELPER_IDS) as HelperKind[]) {
+    const entry = Array.isArray(data.helpers)
+      ? data.helpers.find((h) => Number(h.data) === HELPER_IDS[kind])
+      : undefined;
+    const level = Number(entry?.lvl ?? 0);
+    if (!entry || !(level > 0)) continue;
+    const cooldown = Number(entry.helper_cooldown ?? 0);
+    helpers[kind] = { level, readyAt: exportTimestamp + (cooldown > 0 ? cooldown : 0) };
+  }
+
   // Sort by finish time ascending (soonest first)
   upgrades.sort((a, b) => a.currentFinishTime - b.currentFinishTime);
 
@@ -206,6 +219,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
     builderBaseUpgradesCount,
     builderHutCount,
     builderBoostEndsAt,
+    helpers,
     upgrades,
   };
 }

@@ -215,3 +215,27 @@ describe("parseVillageExport", () => {
     }
   });
 });
+
+describe("helpers", () => {
+  it("reads the Builder's Apprentice and Lab Assistant with when they're next free", () => {
+    // Shape from a real export: both on the shared cooldown, the other two helpers ignored
+    const r = parse({
+      tag: "#2PP0JQ9V",
+      timestamp: TS,
+      helpers: [
+        { data: 93000000, lvl: 8, helper_cooldown: 67217 },
+        { data: 93000001, lvl: 12 },
+        { data: 93000002, lvl: 1, helper_cooldown: 67217 },
+      ],
+      buildings: [],
+    });
+    expect(r.helpers).toEqual({
+      builder: { level: 8, readyAt: TS + 67217 },
+      lab: { level: 12, readyAt: TS },
+    });
+  });
+
+  it("is empty when the village has no Helper Hut yet", () => {
+    expect(parse({ tag: "#2PP0JQ9V", timestamp: TS, buildings: [] }).helpers).toEqual({});
+  });
+});

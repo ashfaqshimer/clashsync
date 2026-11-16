@@ -50,6 +50,13 @@
       "when": 1794738832626,
       "tag": "0006_village_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794811626011,
+      "tag": "0007_helpers",
+      "breakpoints": true
     }
   ]
 }

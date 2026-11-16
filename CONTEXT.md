@@ -39,6 +39,7 @@ Conventions: game times are `bigint` Unix seconds, app events are `timestamptz`.
   - `id` uuid, `player_tag` text NOT NULL UNIQUE (`#XXXX`), `owner_id` → `auth_user` (null = unclaimed), `verified_at`
   - `player_name`, `town_hall_level` (Supercell API, nullable)
   - `last_export_timestamp`, `builder_count`, `builder_boost_ends_at`, `lab_boost_ends_at` (Unix seconds)
+  - `apprentice_level` / `apprentice_ready_at`, `lab_assistant_level` / `lab_assistant_ready_at`: Helper Hut from the export's `helpers[]` (ready-at = export time + `helper_cooldown`); used by the bedtime plan (`lib/bedtime.ts`)
   - `discord_webhook_url` (**encrypted**, `lib/secrets.ts`; never sent to the client), `dm_alerts`, `alert_lead_minutes` (0–1440), `idle_reminders`, `idle_reminded_at`
 - **`upgrades`**: the village's current timers, replaced on every sync.
   - `id` uuid, `village_id` → `villages` (cascade), `data_id`, `entity_name` (plain name; the UI adds "(Gear-Up)" / "(Goblin/Extra)" via `upgradeLabel()`)

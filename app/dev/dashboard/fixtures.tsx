@@ -6,6 +6,9 @@ import { LiveDashboard } from "@/app/v/[tag]/live-dashboard";
 import { useNow } from "@/app/v/[tag]/use-now";
 import { SyncedBanner } from "@/app/v/[tag]/synced-banner";
 import { PlayerProfileLine } from "@/app/v/[tag]/player-profile-line";
+import { TonightCard, type TonightRow } from "@/app/v/[tag]/tonight-card";
+import { DEFAULT_NIGHT, nightWindow } from "@/lib/timeline";
+import { FlaskConical, Hammer, PawPrint } from "lucide-react";
 
 /** Every dashboard state, rendered by the real components with fake data (times relative to the client clock). */
 
@@ -46,6 +49,7 @@ function base(now: number): VillageSnapshot {
     idleReminders: true,
     builderBoostEndsAt: null,
     labBoostEndsAt: now + 38 * 60,
+    helpers: { builder: { level: 8, readyAt: now - 3600 }, lab: { level: 12, readyAt: now + 5 * 3600 } },
     undoableBoost: { kind: "RESEARCH_POTION", createdAt: new Date(0).toISOString() },
     upgrades: [
       up("aq", "Archer Queen", "BUILDER", -120, now, { currentLevel: 86, targetLevel: 87 }),
@@ -156,6 +160,32 @@ export function DashboardFixtures() {
           ownership={{ state: "account_owner", loggedIn: true, dmAvailable: false }}
         />
       </Section>
+
+      <Section title="Tonight · bedtime fixes: stay up, Builder's Apprentice, Lab Assistant later, pet (no fix)">
+        <TonightCard now={now} rows={tonightRows(now)} helpers={{ builder: { level: 8, readyAt: now - 3600 }, lab: { level: 12, readyAt: now + 26 * 3600 } }} />
+      </Section>
     </div>
   );
+}
+
+/** Finishes placed around tonight's default night, so the fixes show at any time of day. */
+function tonightRows(now: number): TonightRow[] {
+  const { start, end } = nightWindow(now, -new Date().getTimezoneOffset(), DEFAULT_NIGHT);
+  const row = (id: string, label: string, finish: number, helper: TonightRow["helper"]): TonightRow => ({
+    id,
+    label,
+    finish,
+    helper,
+    extra: false,
+    tone: helper === "lab" ? "elixir" : helper === "builder" ? "gold" : "green",
+    Icon: helper === "lab" ? FlaskConical : helper === "builder" ? Hammer : PawPrint,
+  });
+  return [
+    row("xb", "X-Bow", start - 2 * 3600, "builder"),
+    row("it", "Inferno Tower", start + 40 * 60, "builder"),
+    // A lvl 8 Apprentice pulls a 3 AM finish before bed if used by 6 PM
+    row("aq", "Archer Queen", start + 4 * 3600, "builder"),
+    row("un", "Unicorn", start + 3 * 3600, null),
+    row("ed", "Electro Dragon", end + 30 * 3600, "lab"),
+  ].filter((r) => r.finish > now);
 }

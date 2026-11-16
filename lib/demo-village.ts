@@ -45,6 +45,7 @@ export function demoVillage(now: number): VillageSnapshot {
     idleReminders: true,
     builderBoostEndsAt: null,
     labBoostEndsAt: null,
+    helpers: { builder: { level: 5, readyAt: now - 2 * 3600 }, lab: { level: 6, readyAt: now + 9 * 3600 } },
     undoableBoost: null,
     upgrades: [
       up("it", "Inferno Tower", "BUILDER", 4 * 60 + 52, now, [9, 10]),

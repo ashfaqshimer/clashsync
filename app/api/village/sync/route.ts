@@ -81,6 +81,13 @@ export async function POST(request: NextRequest) {
       builderBoostEndsAt: parseResult.builderBoostEndsAt ?? null,
       labBoostEndsAt: runningLabBoost,
     };
+    const { builder: apprentice, lab: labAssistant } = parseResult.helpers ?? {};
+    const helperFields = {
+      apprenticeLevel: apprentice?.level ?? null,
+      apprenticeReadyAt: apprentice?.readyAt ?? null,
+      labAssistantLevel: labAssistant?.level ?? null,
+      labAssistantReadyAt: labAssistant?.readyAt ?? null,
+    };
     const finishTimeFor = (item: (typeof parseResult.upgrades)[number]) =>
       item.category === POTIONS.RESEARCH_POTION.category && item.villageType === "HOME"
         ? finishWithRunningBoost(
@@ -108,6 +115,7 @@ export async function POST(request: NextRequest) {
                 ? { builderCount: parseResult.builderHutCount }
                 : {}),
               ...boostFields,
+              ...helperFields,
               ...profileFields,
             })
             .where(eq(villages.id, villageId)),
@@ -135,6 +143,7 @@ export async function POST(request: NextRequest) {
             lastExportTimestamp: exportTimestamp,
             builderCount: parseResult.builderHutCount ?? null,
             ...boostFields,
+            ...helperFields,
             ...profileFields,
           }),
         ];

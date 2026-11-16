@@ -1,7 +1,16 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import { CheckCircle2, Moon, type LucideIcon } from "lucide-react";
+import { useSyncExternalStore, type ReactNode } from "react";
+import { CheckCircle2, CornerDownRight, FlaskConical, Hammer, Moon, type LucideIcon } from "lucide-react";
+import {
+  HELPER_NAMES,
+  helperSavesSeconds,
+  planBedtime,
+  type BedtimeFix,
+  type HelperKind,
+  type Helpers,
+  type HelperTip,
+} from "@/lib/bedtime";
 import {
   DEFAULT_NIGHT,
   TIMELINE_WINDOW_SECONDS,
@@ -20,6 +29,10 @@ export interface TonightRow {
   tone: Tone;
   Icon: LucideIcon;
   finish: number;
+  /** Which helper can speed it up (null: none can). */
+  helper: HelperKind | null;
+  /** Goblin / bonus slot. */
+  extra: boolean;
 }
 
 const DOT: Record<Tone, string> = {
@@ -42,7 +55,7 @@ function hourName(h: number) {
   return `${h % 12 === 0 ? 12 : h % 12} ${suffix}`;
 }
 
-function clock(epoch: number) {
+export function clock(epoch: number) {
   return new Date(epoch * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
@@ -50,6 +63,13 @@ function clock(epoch: number) {
 function idleText(seconds: number) {
   const h = Math.round(seconds / 3600);
   return h < 1 ? "under 1h" : `${h}h`;
+}
+
+/** One line per fix, player-friendly. */
+export function fixText(fix: BedtimeFix): string {
+  return fix.kind === "stayUp"
+    ? `Stay up until ${clock(fix.until)} and start the next one`
+    : `Use your ${HELPER_NAMES[fix.helper]} by ${clock(fix.useBy)}: done at ${clock(fix.newFinish)}, before bed`;
 }
 
 /** The viewer's sleep hours, remembered in this browser only (a convenience, not account data). */
@@ -98,7 +118,15 @@ export function useNightHours(): [NightHours, (h: NightHours) => void] {
  * "Tonight": answers "will anything sit idle while I sleep?" first, then shows
  * finishes on one 24h strip and lists what to restart before bed.
  */
-export function TonightCard({ rows, now }: { rows: TonightRow[]; now: number | null }) {
+export function TonightCard({
+  rows,
+  now,
+  helpers = {},
+}: {
+  rows: TonightRow[];
+  now: number | null;
+  helpers?: Helpers;
+}) {
   const [hours, setHours] = useNightHours();
   if (rows.length === 0) return null;
 
@@ -113,7 +141,7 @@ export function TonightCard({ rows, now }: { rows: TonightRow[]; now: number | n
         title={<span id="tonight-title">Tonight</span>}
         actions={<NightPicker hours={hours} onChange={setHours} />}
       />
-      {now === null ? <div className="h-40" aria-hidden /> : <TonightBody rows={rows} now={now} hours={hours} />}
+      {now === null ? <div className="h-40" aria-hidden /> : <TonightBody rows={rows} now={now} hours={hours} helpers={helpers} />}
     </Card>
   );
 }
@@ -148,10 +176,22 @@ function NightPicker({ hours, onChange }: { hours: NightHours; onChange: (h: Nig
   );
 }
 
-function TonightBody({ rows, now, hours }: { rows: TonightRow[]; now: number; hours: NightHours }) {
+function TonightBody({
+  rows,
+  now,
+  hours,
+  helpers,
+}: {
+  rows: TonightRow[];
+  now: number;
+  hours: NightHours;
+  helpers: Helpers;
+}) {
   const offset = -new Date().getTimezoneOffset();
   const night = nightWindow(now, offset, hours);
   const plan = planNight(rows, night, now);
+  const bedtimePlan = planBedtime(rows, night, now, helpers);
+  const labelOf = (id: string | null) => rows.find((r) => r.id === id)?.label ?? null;
   const asleep = now >= night.start;
   const bedtime = hourName(hours.startHour);
   const wake = hourName(hours.endHour);
@@ -161,7 +201,10 @@ function TonightBody({ rows, now, hours }: { rows: TonightRow[]; now: number; ho
       ? {
           tone: "text-gold-300",
           title: `${plan.overnight.length} ${plan.overnight.length === 1 ? "slot goes" : "slots go"} idle overnight`,
-          body: `Idle for about ${idleText(plan.idleSeconds)} in total before you're up at ${wake}. Starting something longer before bed keeps them busy.`,
+          body:
+            bedtimePlan.fixable > 0
+              ? `Idle for about ${idleText(plan.idleSeconds)} in total before you're up at ${wake}. ${bedtimePlan.fixable === plan.overnight.length ? (plan.overnight.length === 1 ? "It" : "All of them") : `${bedtimePlan.fixable} of them`} can be fixed for free, see below.`
+              : `Idle for about ${idleText(plan.idleSeconds)} in total before you're up at ${wake}. Starting something longer before bed keeps them busy.`,
         }
       : plan.beforeBed.length > 0
         ? {
@@ -207,11 +250,26 @@ function TonightBody({ rows, now, hours }: { rows: TonightRow[]; now: number; ho
                     <Badge tone="red">idle {idleText(idleSeconds)}</Badge>
                   </span>
                 }
-              />
+              >
+                {bedtimePlan.fixes[item.id]?.map((fix) => (
+                  <li key={fix.kind} className="flex items-start gap-1.5 text-xs font-bold text-grass">
+                    <CornerDownRight className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden />
+                    <span>{fixText(fix)}</span>
+                  </li>
+                ))}
+              </Row>
             ))}
           </Section>
         )}
       </div>
+
+      {bedtimePlan.helperTips.length > 0 && (
+        <ul className="space-y-1.5">
+          {bedtimePlan.helperTips.map((tip) => (
+            <HelperLine key={tip.helper} tip={tip} label={labelOf(tip.suggestId)} level={helpers[tip.helper]!.level} now={now} />
+          ))}
+        </ul>
+      )}
 
       {plan.allNight.length > 0 && (
         <p className="flex items-start gap-2 text-sm font-semibold text-muted">
@@ -249,15 +307,46 @@ function Section({
   );
 }
 
-function Row({ row, right }: { row: TonightRow; right: React.ReactNode }) {
+function Row({ row, right, children }: { row: TonightRow; right: ReactNode; children?: ReactNode }) {
   const { Icon } = row;
   return (
-    <li className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-      <IconChip tone={row.tone} size="sm">
-        <Icon />
-      </IconChip>
-      <span className="flex-1 min-w-0 truncate text-sm font-bold text-cream">{row.label}</span>
-      <span className="shrink-0 text-xs font-bold tabular-nums">{right}</span>
+    <li className="py-2 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-2.5">
+        <IconChip tone={row.tone} size="sm">
+          <Icon />
+        </IconChip>
+        <span className="flex-1 min-w-0 truncate text-sm font-bold text-cream">{row.label}</span>
+        <span className="shrink-0 text-xs font-bold tabular-nums">{right}</span>
+      </div>
+      {children && <ul className="mt-1.5 ml-[2.4rem] space-y-1">{children}</ul>}
+    </li>
+  );
+}
+
+const HELPER_ICON: Record<HelperKind, { Icon: LucideIcon; tone: Tone }> = {
+  builder: { Icon: Hammer, tone: "gold" },
+  lab: { Icon: FlaskConical, tone: "elixir" },
+};
+
+/** A helper not needed tonight: when it's free, and where its full value counts. */
+function HelperLine({ tip, label, level, now }: { tip: HelperTip; label: string | null; level: number; now: number }) {
+  const { Icon, tone } = HELPER_ICON[tip.helper];
+  const name = HELPER_NAMES[tip.helper];
+  const hours = helperSavesSeconds(level) / 3600;
+  const when =
+    tip.readyAt <= now
+      ? null
+      : new Date(tip.readyAt * 1000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const text = label
+    ? `${when ? `free at ${when}` : "ready"}: use it on ${label} so all ${hours}h count`
+    : `${when ? `free at ${when}` : "ready"}, but nothing has ${hours + 1}h+ left to use it fully`;
+  return (
+    <li className="flex items-start gap-2 text-sm font-semibold text-muted">
+      <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${tone === "gold" ? "text-gold-300" : "text-elixir"}`} aria-hidden />
+      <span>
+        <b className="text-cream/90">{name}</b> {text}
+        <span className="text-faint"> (as of your last export)</span>
+      </span>
     </li>
   );
 }

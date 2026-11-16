@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import type { Helpers } from "./bedtime";
 import { boosts, upgrades, villages } from "@/lib/db/schema";
 import type { PotionKind } from "@/lib/boosts";
 import type { VillageOwnership } from "@/lib/ownership";
@@ -38,6 +39,8 @@ export interface VillageSnapshot {
   idleReminders: boolean;
   builderBoostEndsAt: number | null;
   labBoostEndsAt: number | null;
+  /** Builder's Apprentice / Lab Assistant as of the latest export. */
+  helpers: Helpers;
   /** Most recent potion that can still be undone. */
   undoableBoost: { kind: PotionKind; createdAt: string } | null;
   upgrades: VillageUpgrade[];
@@ -129,6 +132,14 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
     idleReminders: row.idleReminders,
     builderBoostEndsAt: row.builderBoostEndsAt,
     labBoostEndsAt: row.labBoostEndsAt,
+    helpers: {
+      ...(row.apprenticeLevel && row.apprenticeReadyAt !== null
+        ? { builder: { level: row.apprenticeLevel, readyAt: row.apprenticeReadyAt } }
+        : {}),
+      ...(row.labAssistantLevel && row.labAssistantReadyAt !== null
+        ? { lab: { level: row.labAssistantLevel, readyAt: row.labAssistantReadyAt } }
+        : {}),
+    },
     undoableBoost: latestBoost
       ? { kind: latestBoost.kind, createdAt: latestBoost.createdAt.toISOString() }
       : null,
