@@ -25,56 +25,9 @@ Package manager is **pnpm** (`packageManager: pnpm@12.5.1`). Do not use npm/yarn
 - **Tailwind CSS v4**, loaded through the `@tailwindcss/turbopack` loader configured in `next.config.ts`. **shadcn/ui is not installed**, despite what the docs say. The UI uses hand-written Tailwind plus `lucide-react` icons, with a dark, game-style look.
 - **Design system** (Clash-inspired, no Supercell fonts/logos/art): tokens and component classes live in `app/globals.css` (night-sky palette, `panel-wood` / `panel-stone` / `well`, bevelled `btn-*`, `badge-*`, `icon-chip-*`, `pip`, `heading-outline`, `field`, `.timer`). React wrappers are in `app/_components/ui/` (`Button`/`buttonClass()` for links, `Card`/`CardHeader`/`Heading`/`Well`, `Badge`/`IconChip`/`Pip`, `CategoryBadge`, `StatusTile`). Fonts via `next/font/google` in `app/layout.tsx`: **Lilita One** (display, `font-display`) and **Nunito** (body, has tabular figures). Use these instead of ad-hoc colour classes; wood panels are for the main section of a page, stone for everything else. Countdowns use `.timer` (tabular numbers) so digits don't jitter. The page background is two `body` pseudo-elements in `globals.css`: a fixed dusk sky with a moon, a few stars (`public/sky/stars.svg`) and a warm glow at the bottom of the screen and a village skyline in front of a sunset band at the end of every page (`public/sky/skyline.svg`, kept visible by body's bottom padding). Keep page sections transparent so they show through.
 - **Neon serverless Postgres + Drizzle ORM** (`drizzle-orm/neon-http`). The `neon-http` driver does **not** support interactive transactions, so multi-step writes use `db.batch([...])` (runs atomically). Generate ids up front (`crypto.randomUUID()`) so later statements in the batch can reference them.
+- `lib/db/index.ts` forces IPv4-first DNS and falls back to loading `.env.local` itself (scripts run without Next's env loading).
+- `lib/clash-api.ts` always goes through the RoyaleAPI proxy (`cocproxy.royaleapi.dev`), so `CLASH_API_KEY` whitelists the proxy IP and works locally and on Vercel. `CLASH_API_MOCK=1` fakes it in dev (never in prod).
 - Path alias `@/*` → repo root.
-
-## Layout
-
-```
-app/
-  page.tsx                      Home (server): hero or "welcome back" list (behind <Suspense>), how it works, paste panel, features, FAQ
-  _home/                        Home sections: hero(+preview), how-it-works, sync-panel (wraps _components/export-form: parse → POST sync → dashboard
-                                with ?synced=N), find-by-tag, features, faq, welcome-back, site-header (header + footer w/ Supercell disclaimer)
-  demo/                         Public read-only demo dashboard (LiveDashboard with demo prop, data from lib/demo-village.ts)
-  api/village/sync/route.ts     POST {rawJson, playerTag?} → parse, upsert village by tag, DELETE its upgrades, insert new (one db.batch)
-  api/village/claim/route.ts    POST {tag, token} → API-token takeover: moves the village to the logged-in account (login required)
-  api/village/notifications/route.ts  PUT webhook · PATCH {dm} DM alerts · POST test · DELETE webhook (owner only)
-  api/auth/[...all]/route.ts    Better Auth handler (Discord OAuth, sessions)
-  api/account/after-login/route.ts  Post-login step: the bot adds the user to the ClashSync Discord server (for DMs)
-  villages/                     "My villages" list for the logged-in account (page.tsx loads data; village-list-views.tsx states; village-rows.tsx
-                                client rows: name, TH chip, idle/stale badges, needs-attention first)
-  _components/account-menu.tsx  Login button / avatar + log out (client, uses lib/auth-client)
-  _components/subpage-header.tsx  Header for inner pages (back to home, actions, account menu)
-  _components/ui/               Shared design-system components (see Stack → Design system)
-  dev/                          Dev-only review pages with fixture data (style guide, dashboard + villages states); 404 in production
-  icon.svg, favicon.ico, apple-icon.png, opengraph-image.png, manifest.ts   App icons, share image, web manifest (public/icon-192/512.png)
-  api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
-  api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
-  v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers). Owners get "Update timers"
-                                (in-place paste, rejects other villages' exports), a "Next moves" card (next-moves.tsx: one ranked list of max 3 to-dos: done upgrades, idle builders, overnight gaps in the evening, old export, link/alerts setup), "Alerts & account" at the bottom (account-section.tsx: folds to one line once linked with alerts on), the "Tonight" card (tonight-card.tsx: what goes idle overnight; below the upgrade lists, moved above them in the 3h before the viewer's bedtime),
-                                a live countdown in the tab title (use-tab-countdown.ts) and a sticky mobile Update button; profile line = cached Supercell API
-lib/
-  parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side
-  clash-data.ts    CLASH_ENTITIES: numeric data ID → {name, category}; resolveEntity() fallback heuristics by section
-  types.ts         Raw export shapes (RawExportVillage / RawVillageItem) + ActiveUpgrade / ParseResult
-  clash-api.ts     fetchPlayerProfile / verifyPlayerToken. Always via RoyaleAPI proxy (cocproxy.royaleapi.dev), so
-                   CLASH_API_KEY whitelists the proxy IP and works locally + on Vercel. CLASH_API_MOCK=1 fakes both in dev (never in prod)
-  db/schema.ts     Drizzle tables: auth_* (Better Auth), villages, upgrades, boosts. Header comment = column conventions
-  db/index.ts      db client; forces IPv4-first DNS; falls back to loading .env.local itself
-  sample-data.ts   SAMPLE_VILLAGE_JSON for demos
-  tags.ts          normalizeTag() (uppercase, O→0, validates charset) / tagToSlug() — use for every tag input
-  auth.ts          Better Auth server config (Discord, auth_* tables, rolling 90-day sessions, cookie cache) + getSessionUser()
-  auth-client.ts   Browser auth client + signInWithDiscord(next)
-  ownership.ts     getVillageAccess(): who may edit a village (owner account, or anyone if unclaimed)
-  app-url.ts       appUrl(): public base URL (links in messages, auth baseURL)
-  village.ts       getVillage(tag) — server data access for the dashboard
-  village-status.ts formatAge() ("3h 12m ago") + villageStatus(): idle builders / stale export / needs attention for list rows. Pure
-  timeline.ts      Pure math for the "Tonight" card: the viewer's night window (default 23:00–07:00, adjustable), before-bed / overnight / all-night buckets with idle time, 24h strip positions, isEvening() for the card's placement
-  bedtime.ts       planBedtime(): fixes for overnight idle slots (stay up ≤1h, Builder's Apprentice / Lab Assistant, then Builder/Research Potion) and helper tips. Pure
-  boosts.ts        Potion specs + pure timing math (boostedFinishTime, nextBoostWindow); shared by parser, API and UI
-  upgrade-label.ts upgradeLabel(): display name + "(Gear-Up)" / "(Goblin/Extra)". The DB stores the plain name
-  secrets.ts       sealWebhookUrl / openWebhookUrl: encryption at rest keyed from BETTER_AUTH_SECRET (server only)
-scripts/           screenshots.mjs, setup-qstash-schedule.ts, db-baseline.ts, seal-webhooks.ts (one-off: encrypt old plain webhooks)
-```
 
 ## Domain rules (important)
 
@@ -108,10 +61,6 @@ Phase 6 done: Discord alerts.
 - **Idle nudge** (`runIdleReminderSweep`, same cron run, after the alert sweep; its failure never fails the run): when a main-slot upgrade (not Goblin/extra) finished `IDLE_AFTER_SECONDS` (1h) ago, within a 30-min window so an old export never triggers it, and there has been no re-sync since, it sends one "anything sitting idle?" message to the same destinations. Claimed with `UPDATE villages SET idle_reminded_at … RETURNING`; a sync clears `idle_reminded_at`, so at most one nudge per sync. Owners toggle it (`villages.idle_reminders`, default on) via `PATCH /api/village/notifications {idleReminders}`. Uses only our data, no Supercell API calls.
 
 Phase 7 done: Discord login (self-hosted Better Auth), account-owned villages (claim on sync, API-token takeover), "My villages", and bot DM alerts. Login requests `guilds.join`; after login the bot adds the user to the ClashSync server (`DISCORD_GUILD_ID`) because bots can only DM people they share a server with. `villages.dm_alerts` turns DMs on (PATCH sends a confirmation DM first). The sweep sends to the webhook and/or DM; it only retries when nothing got through. DM UI is hidden unless `DISCORD_BOT_TOKEN` and `DISCORD_GUILD_ID` are set.
-
-Cleanup done: legacy `cs_owner` cookie removed, `users` renamed to `villages` (`drizzle/0003_villages.sql`, hand-written: drizzle-kit can't answer rename prompts without a TTY, so the snapshot was rebuilt with `drizzle-kit/api`), unused columns dropped, integration tests added.
-
-Schema cleanup done (`drizzle/0004_schema_cleanup.sql`): upgrades replaced on sync (status and `remaining_seconds_at_export` dropped, old `CANCELLED` rows deleted), `player_tag` NOT NULL, uuid ids, timestamptz, CHECK constraints, unique `auth_account(provider_id, account_id)`, encrypted webhook URLs and OAuth tokens, plain `entity_name`.
 
 ## Conventions
 
