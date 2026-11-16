@@ -10,13 +10,15 @@ import {
   Hammer,
   PawPrint,
   RefreshCw,
+  Moon,
+  BellRing,
+  Link2,
   ShieldCheck,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
-import { Button } from "@/app/_components/ui/button";
+import { Button, buttonClass } from "@/app/_components/ui/button";
 import { Hint } from "@/app/_components/ui/hint";
-import { SetupChecklist } from "./setup-checklist";
 import { UpdatePanel } from "./update-panel";
 import { formatDuration } from "@/lib/parser";
 import { formatAge, STALE_AFTER_SECONDS } from "@/lib/village-status";
@@ -25,7 +27,10 @@ import { AlertsCard } from "./alerts-card";
 import { OwnershipCard, type OwnershipView } from "./ownership-card";
 import { PotionBar } from "./potion-bar";
 import { TonightCard, useNightHours } from "./tonight-card";
-import { isEvening } from "@/lib/timeline";
+import { NextMoves, type NextMove } from "./next-moves";
+import { AccountSection } from "./account-section";
+import { DiscordLoginButton } from "@/app/_components/account-menu";
+import { isEvening, nightWindow, planNight } from "@/lib/timeline";
 import { useTabCountdown } from "./use-tab-countdown";
 import { useNow } from "./use-now";
 import type { LucideIcon } from "lucide-react";
@@ -149,6 +154,99 @@ export function LiveDashboard({
     />
   );
 
+  // ── Next moves, most urgent first (the card shows the top few) ──
+  // One update button is enough: later moves that need it just say so in words
+  let updateOffered = false;
+  const updateAction = (label = "Update timers") =>
+    updateOffered ? undefined : ((updateOffered = true), canUpdate) ? (
+      <Button size="sm" onClick={() => setUpdateOpen(true)}>
+        <RefreshCw className="w-3.5 h-3.5" />
+        {label}
+      </Button>
+    ) : ownership.state === "unclaimed" ? (
+      <Link href="/#sync" className={buttonClass({ size: "sm", variant: "stone" })}>
+        Paste a fresh export
+      </Link>
+    ) : undefined;
+  const moves: NextMove[] = [];
+  if (!demo && now !== null) {
+    if (finished.length > 0) {
+      moves.push({
+        id: "done",
+        tone: "green",
+        icon: <CheckCircle2 />,
+        title:
+          finished.length === 1 ? `${upgradeLabel(finished[0])} is done!` : `${finished.length} upgrades are done!`,
+        body: "Start the next one in the game, then update your timers so ClashSync can track it.",
+        action: updateAction(),
+      });
+    } else if ((idleBuilders ?? 0) > 0) {
+      moves.push({
+        id: "idle",
+        tone: "red",
+        icon: <Hammer />,
+        title: `${idleBuilders} builder${idleBuilders === 1 ? " is" : "s are"} idle`,
+        body: "Start something in the game, then update your timers.",
+        action: updateAction(),
+      });
+    }
+    if (evening) {
+      const plan = planNight(
+        village.upgrades.map((u) => ({ finish: u.currentFinishTime })),
+        nightWindow(now, -new Date().getTimezoneOffset(), nightHours),
+        now
+      );
+      if (plan.overnight.length > 0) {
+        moves.push({
+          id: "tonight",
+          tone: "sky",
+          icon: <Moon />,
+          title: `${plan.overnight.length} ${plan.overnight.length === 1 ? "slot goes" : "slots go"} idle overnight`,
+          body: "See what finishes while you sleep and what to start before bed.",
+          action: (
+            <a href="#tonight" className={buttonClass({ size: "sm", variant: "stone" })}>
+              See tonight
+            </a>
+          ),
+        });
+      }
+    }
+    if (exportAge !== null && exportAge > STALE_AFTER_SECONDS) {
+      moves.push({
+        id: "stale",
+        tone: "gold",
+        icon: <TriangleAlert />,
+        title: `Your export is ${formatDuration(exportAge - (exportAge % 3600))} old`,
+        body: "Upgrades you've started since won't show here.",
+        action: updateAction(),
+      });
+    }
+    if (canUpdate && ownership.state !== "account_owner") {
+      moves.push({
+        id: "link",
+        tone: "sky",
+        icon: <Link2 />,
+        title: "Link this village to your account",
+        body: "Then only you can update it, and Discord alerts can reach you.",
+        action: ownership.loggedIn ? updateAction("Paste export") : <DiscordLoginButton />,
+      });
+    } else if (isOwner && !village.webhookAlerts && !village.dmAlerts) {
+      moves.push({
+        id: "alerts",
+        tone: "discord",
+        icon: <BellRing />,
+        title: "Turn on Discord alerts",
+        body: "Get a ping before each upgrade finishes.",
+        action: (
+          <a href="#alerts" className="btn btn-discord btn-sm">
+            Set up alerts
+          </a>
+        ),
+      });
+    }
+  }
+  const setupDone = ownership.state === "account_owner" && (village.webhookAlerts || village.dmAlerts);
+
   return (
     <div className="space-y-6">
       <div ref={headerRef}>
@@ -186,65 +284,7 @@ export function LiveDashboard({
 
       {updateOpen && <UpdatePanel tag={village.playerTag} onClose={() => setUpdateOpen(false)} />}
 
-      {canUpdate && (
-        <SetupChecklist
-          ownership={ownership}
-          alertsOn={village.webhookAlerts || village.dmAlerts}
-          onUpdate={() => setUpdateOpen(true)}
-        />
-      )}
-
-      {finished.length > 0 && !demo && (
-        <div role="status" className="panel-stone !border-grass/70 flex flex-wrap items-center gap-3 p-4 text-sm font-semibold text-cream/90 animate-fade-in">
-          <IconChip tone="green" size="sm">
-            <CheckCircle2 />
-          </IconChip>
-          <p className="flex-1 min-w-[12rem]">
-            <b className="text-grass">
-              {finished.length === 1
-                ? `${upgradeLabel(finished[0])} is done!`
-                : `${finished.length} upgrades are done!`}
-            </b>{" "}
-            Start your next {finished.length === 1 ? "upgrade" : "ones"} in the game, then update your timers so
-            ClashSync can track {finished.length === 1 ? "it" : "them"}.
-          </p>
-          {canUpdate ? (
-            <Button size="sm" onClick={() => setUpdateOpen(true)} className="max-sm:w-full">
-              <RefreshCw className="w-3.5 h-3.5" />
-              Update timers
-            </Button>
-          ) : (
-            <Link href="/#sync" className="font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream">
-              Paste a fresh export
-            </Link>
-          )}
-        </div>
-      )}
-
-      {exportAge !== null && exportAge > STALE_AFTER_SECONDS && (
-        <div role="status" className="panel-stone !border-gold-500 flex items-start gap-3 p-4 text-sm font-semibold text-gold-100 animate-fade-in">
-          <IconChip size="sm">
-            <TriangleAlert />
-          </IconChip>
-          <div className="flex-1 self-center">
-            Your export is {formatDuration(exportAge)} old, so upgrades you&apos;ve started since
-            won&apos;t show here.{" "}
-            {canUpdate ? (
-              <button
-                type="button"
-                onClick={() => setUpdateOpen(true)}
-                className="cursor-pointer font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream"
-              >
-                Update your timers
-              </button>
-            ) : (
-              <Link href="/#sync" className="font-extrabold text-gold-300 underline decoration-2 underline-offset-2 hover:text-cream">
-                Re-sync for accuracy
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+      <NextMoves moves={moves} />
 
       {/* Status tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -309,20 +349,28 @@ export function LiveDashboard({
         }
       />
 
-      {isOwner && !demo && (
-        <div id="alerts" className="scroll-mt-20">
-        <AlertsCard
-          tag={village.playerTag}
+      {!demo && (
+        <AccountSection
+          collapsed={setupDone}
           webhookOn={village.webhookAlerts}
           dmOn={village.dmAlerts}
           leadMinutes={village.alertLeadMinutes}
-          idleReminders={village.idleReminders}
-          dmAvailable={ownership.dmAvailable}
-        />
-        </div>
+        >
+          {isOwner && (
+            <div id="alerts" className="scroll-mt-20">
+              <AlertsCard
+                tag={village.playerTag}
+                webhookOn={village.webhookAlerts}
+                dmOn={village.dmAlerts}
+                leadMinutes={village.alertLeadMinutes}
+                idleReminders={village.idleReminders}
+                dmAvailable={ownership.dmAvailable}
+              />
+            </div>
+          )}
+          <OwnershipCard tag={village.playerTag} ownership={ownership} />
+        </AccountSection>
       )}
-
-      {!demo && <OwnershipCard tag={village.playerTag} ownership={ownership} />}
 
       {showStickyUpdate && (
         <>

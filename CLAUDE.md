@@ -50,7 +50,7 @@ app/
   api/cron/notify/route.ts      QStash-signed sweep → Discord alerts (lib/notify.ts, lib/discord.ts)
   api/village/boosts/route.ts   POST {tag, kind} apply potion · DELETE {tag} undo latest. Writes via db.batch (atomic)
   v/[tag]/                      Live dashboard (server page streams DB data behind <Suspense>; client ticks timers). Owners get "Update timers"
-                                (in-place paste, rejects other villages' exports), a setup checklist, a "done" prompt, the "Tonight" card (tonight-card.tsx: what goes idle overnight; below the upgrade lists, moved above them in the 3h before the viewer's bedtime),
+                                (in-place paste, rejects other villages' exports), a "Next moves" card (next-moves.tsx: one ranked list of max 3 to-dos: done upgrades, idle builders, overnight gaps in the evening, old export, link/alerts setup), "Alerts & account" at the bottom (account-section.tsx: folds to one line once linked with alerts on), the "Tonight" card (tonight-card.tsx: what goes idle overnight; below the upgrade lists, moved above them in the 3h before the viewer's bedtime),
                                 a live countdown in the tab title (use-tab-countdown.ts) and a sticky mobile Update button; profile line = cached Supercell API
 lib/
   parser.ts        parseVillageExport(rawJson) → ParseResult; formatDuration(). Pure, runs client AND server side

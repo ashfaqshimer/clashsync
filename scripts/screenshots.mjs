@@ -97,7 +97,7 @@ const STATES = [
       ["/api/village/notifications", 200, { success: true }],
       ["/api/village/boosts", 409, { success: false, error: "Those timers changed since the potion was logged, so it can't be undone." }],
     ]),
-    steps: [step(`btn("Send test").click();`), step(`btn("Change webhook").click();`), step(`btn("I used a Builder Potion").click();`)],
+    steps: [step(`document.querySelectorAll("details#account").forEach((d) => (d.open = true));`), step(`btn("Send test").click();`), step(`btn("Change webhook").click();`), step(`btn("I used a Builder Potion").click();`)],
   },
 
   { page: "dashboard", name: "update-open", path: "/dev/dashboard", steps: [step(`btn("Update timers").click();`)] },
@@ -116,7 +116,7 @@ const STATES = [
   },
   {
     page: "dashboard", name: "hint-api-token", path: "/dev/dashboard",
-    steps: [step(`document.querySelector("[aria-label*=\\"API token\\"]").click();`)],
+    steps: [step(`document.querySelectorAll("details#account").forEach((d) => (d.open = true));`), step(`document.querySelector("[aria-label*=\\"API token\\"]").click();`)],
   },
 
   // My villages + home welcome-back (fixtures) + the real logged-out page

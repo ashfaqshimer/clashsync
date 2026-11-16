@@ -103,7 +103,7 @@ export function TonightCard({ rows, now }: { rows: TonightRow[]; now: number | n
   if (rows.length === 0) return null;
 
   return (
-    <Card aria-labelledby="tonight-title" className="p-4 sm:p-5 space-y-4">
+    <Card id="tonight" aria-labelledby="tonight-title" className="p-4 sm:p-5 space-y-4 scroll-mt-20">
       <CardHeader
         icon={
           <IconChip tone="sky" size="sm">
