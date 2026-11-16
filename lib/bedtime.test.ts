@@ -141,3 +141,15 @@ describe("bedtimeCheckMessage", () => {
     );
   });
 });
+
+describe("applyHelper", () => {
+  it("takes level hours off and starts the shared daily clock", async () => {
+    const { applyHelper } = await import("./bedtime");
+    expect(applyHelper(now + 20 * H, now, 8, null)).toEqual({ newFinish: now + 12 * H, readyAt: now + 23 * H });
+    // Nearly done: finishes within the hour instead
+    expect(applyHelper(now + 4.5 * H, now, 8, null).newFinish).toBe(now + 0.5 * H);
+    // The other helper already started today's clock
+    expect(applyHelper(now + 20 * H, now, 8, now + 5 * H).readyAt).toBe(now + 5 * H);
+    expect(applyHelper(now + 20 * H, now, 8, now - H).readyAt).toBe(now + 23 * H);
+  });
+});

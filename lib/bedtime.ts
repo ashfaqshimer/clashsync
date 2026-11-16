@@ -248,3 +248,24 @@ export const BEDTIME_CHECK_LEAD_SECONDS = 3600;
 
 /** Cheapest fix first: free (helper, staying up) before a potion. */
 export const FIX_RANK: Record<BedtimeFix["kind"], number> = { helper: 0, stayUp: 1, potion: 2 };
+
+/** After a helper's hour of work, all helpers share one cooldown of about this long. */
+export const HELPER_COOLDOWN_SECONDS = 23 * 3600;
+
+/**
+ * A helper put to work on an upgrade at `now`: its new finish (level + 1 speed
+ * for an hour, so a nearly-done upgrade just finishes early) and when the helper
+ * is free again. Helpers share one daily clock: if the other one already started
+ * it, this one is free at that same reset.
+ */
+export function applyHelper(
+  finish: number,
+  now: number,
+  level: number,
+  otherReadyAt: number | null
+): { newFinish: number; readyAt: number } {
+  return {
+    newFinish: boostedFinishTime(finish, now, level + 1, HELPER_WORK_SECONDS),
+    readyAt: otherReadyAt !== null && otherReadyAt > now ? otherReadyAt : now + HELPER_COOLDOWN_SECONDS,
+  };
+}

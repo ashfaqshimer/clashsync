@@ -1,0 +1,2 @@
+ALTER TABLE "boosts" DROP CONSTRAINT "boosts_kind_check";--> statement-breakpoint
+ALTER TABLE "boosts" ADD CONSTRAINT "boosts_kind_check" CHECK ("boosts"."kind" in ('BUILDER_POTION', 'RESEARCH_POTION', 'BUILDER_APPRENTICE', 'LAB_ASSISTANT'));

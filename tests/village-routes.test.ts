@@ -19,6 +19,7 @@ vi.mock("@/lib/clash-api", () => ({
 const { testDb, resetTestDb, createAccount, villages, upgrades } = await import("./test-db");
 const { POST: sync } = await import("@/app/api/village/sync/route");
 const { POST: claim } = await import("@/app/api/village/claim/route");
+const { POST: boost, DELETE: undoBoost } = await import("@/app/api/village/boosts/route");
 
 const TAG = "#PYL";
 const as = (id: string | null) => {
@@ -219,5 +220,75 @@ describe("getOwnedVillages", () => {
     expect(row.finishTimes.sort()).toEqual([ts + 3600, ts + 7200, ts + 86400]);
     expect(row.builderFinishTimes).toEqual([ts + 3600]);
     expect(await getOwnedVillages("mallory")).toEqual([]);
+  });
+});
+
+describe("helpers via /api/village/boosts", () => {
+  const H = 3600;
+  // Builder 20h left, lab research 30h left; Apprentice lvl 8 ready, Lab Assistant lvl 12 ready
+  const syncWithHelpers = async (cooldown = 0) => {
+    await sync(
+      post("/api/village/sync", {
+        rawJson: exportJson(now(), {
+          buildings: [{ data: 1000008, lvl: 20, timer: 20 * H }],
+          units: [{ data: 4000000, lvl: 5, timer: 30 * H }],
+          helpers: [
+            { data: 93000000, lvl: 8, helper_cooldown: cooldown },
+            { data: 93000001, lvl: 12, helper_cooldown: cooldown },
+          ],
+        }),
+      })
+    );
+    const [builder, lab] = await currentUpgrades();
+    return { builder, lab };
+  };
+  const del = (body: unknown) =>
+    new NextRequest("http://localhost/api/village/boosts", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("logs a helper use: level hours off, helper busy until the shared reset, and undo restores both", async () => {
+    const { builder } = await syncWithHelpers();
+    const res = await boost(post("/api/village/boosts", { tag: TAG, kind: "BUILDER_APPRENTICE", upgradeId: builder.id }));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.savedSeconds).toBe(8 * H);
+    const after = (await currentUpgrades())[0];
+    expect(after.currentFinishTime).toBe(builder.currentFinishTime - 8 * H);
+    const v = await village();
+    expect(v.apprenticeReadyAt).toBeGreaterThanOrEqual(now() + 23 * H - 5);
+
+    // Can't use it twice
+    const again = await boost(post("/api/village/boosts", { tag: TAG, kind: "BUILDER_APPRENTICE", upgradeId: builder.id }));
+    expect(again.status).toBe(409);
+
+    // The Lab Assistant shares today's clock
+    const lab = (await currentUpgrades())[1];
+    await boost(post("/api/village/boosts", { tag: TAG, kind: "LAB_ASSISTANT", upgradeId: lab.id }));
+    expect((await village()).labAssistantReadyAt).toBe(v.apprenticeReadyAt);
+
+    // Undo the latest (the Lab Assistant)
+    const undone = await undoBoost(del({ tag: TAG }));
+    expect(await undone.json()).toMatchObject({ success: true, undone: "LAB_ASSISTANT" });
+    expect((await currentUpgrades())[1].currentFinishTime).toBe(lab.currentFinishTime);
+    expect((await village()).labAssistantReadyAt).toBe(v.labAssistantReadyAt);
+  });
+
+  it("rejects a helper that's resting, the wrong slot, or a village without one", async () => {
+    const { builder } = await syncWithHelpers(5 * H);
+    const resting = await boost(post("/api/village/boosts", { tag: TAG, kind: "BUILDER_APPRENTICE", upgradeId: builder.id }));
+    expect(resting.status).toBe(409);
+
+    await syncWithHelpers(0);
+    const [, l2] = await currentUpgrades();
+    const wrongSlot = await boost(post("/api/village/boosts", { tag: TAG, kind: "BUILDER_APPRENTICE", upgradeId: l2.id }));
+    expect(wrongSlot.status).toBe(400);
+
+    await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
+    const [b3] = await currentUpgrades();
+    const none = await boost(post("/api/village/boosts", { tag: TAG, kind: "BUILDER_APPRENTICE", upgradeId: b3.id }));
+    expect(none.status).toBe(409);
   });
 });

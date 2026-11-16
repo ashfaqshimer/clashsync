@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 // Relative imports: drizzle-kit loads this file without the @/ alias
 import { UPGRADE_TYPES, VILLAGE_TYPES } from "../types";
-import { POTION_KINDS } from "../boosts";
+import { BOOST_KINDS } from "../boosts";
 
 /*
  * Conventions
@@ -211,7 +211,11 @@ export interface BoostChange {
 
 export const BOOST_STATUSES = ["APPLIED", "UNDONE", "SUPERSEDED"] as const;
 
-/** Log of potions applied in the app, so the latest one can be undone. */
+/**
+ * Log of potions and helper uses applied in the app, so the latest one can be
+ * undone. `window_end` is the value it set on the village column (boost end /
+ * helper ready-at); undo needs that column still equal to it.
+ */
 export const boosts = pgTable(
   "boosts",
   {
@@ -219,9 +223,10 @@ export const boosts = pgTable(
     villageId: uuid("village_id")
       .notNull()
       .references(() => villages.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: POTION_KINDS }).notNull(),
+    kind: text("kind", { enum: BOOST_KINDS }).notNull(), // A potion or a helper use
     windowStart: bigint("window_start", { mode: "number" }).notNull(),
     windowEnd: bigint("window_end", { mode: "number" }).notNull(),
+    // Value of the village column this changed (potion: *_boost_ends_at, helper: *_ready_at), restored on undo
     previousBoostEndsAt: bigint("previous_boost_ends_at", { mode: "number" }),
     changes: jsonb("changes").$type<BoostChange[]>().notNull(),
     // UNDONE = undo button; SUPERSEDED = a later sync or timer change made undo impossible
@@ -230,7 +235,7 @@ export const boosts = pgTable(
   },
   (table) => [
     index("boosts_village_status_idx").on(table.villageId, table.status),
-    check("boosts_kind_check", oneOf(table.kind, POTION_KINDS)),
+    check("boosts_kind_check", oneOf(table.kind, BOOST_KINDS)),
     check("boosts_status_check", oneOf(table.status, BOOST_STATUSES)),
   ]
 );

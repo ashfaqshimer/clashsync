@@ -11,6 +11,21 @@
 export const POTION_KINDS = ["BUILDER_POTION", "RESEARCH_POTION"] as const;
 export type PotionKind = (typeof POTION_KINDS)[number];
 
+/** Helper Hut uses logged next to potions, so the same Undo works for them. */
+export const HELPER_BOOST_KINDS = ["BUILDER_APPRENTICE", "LAB_ASSISTANT"] as const;
+export type HelperBoostKind = (typeof HELPER_BOOST_KINDS)[number];
+
+/** Everything the `boosts` log can hold. */
+export const BOOST_KINDS = [...POTION_KINDS, ...HELPER_BOOST_KINDS] as const;
+export type BoostKind = (typeof BOOST_KINDS)[number];
+
+export const BOOST_LABELS: Record<BoostKind, string> = {
+  BUILDER_POTION: "Builder Potion",
+  RESEARCH_POTION: "Research Potion",
+  BUILDER_APPRENTICE: "Builder's Apprentice",
+  LAB_ASSISTANT: "Lab Assistant",
+};
+
 export interface PotionSpec {
   label: string;
   multiplier: number;

@@ -183,6 +183,7 @@ export function LiveDashboard({
       boostEndsAt={boostEndsAt}
       savedNight={village.savedNight}
       onNightChange={saveNight}
+      editTag={canUpdate ? village.playerTag : undefined}
     />
   );
 

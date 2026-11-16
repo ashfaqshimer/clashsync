@@ -64,6 +64,13 @@
       "when": 1794816280832,
       "tag": "0008_bedtime_check",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794818006143,
+      "tag": "0009_helper_boosts",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import type { Helpers } from "./bedtime";
 import type { NightHours } from "./timeline";
 import { boosts, upgrades, villages } from "@/lib/db/schema";
-import type { PotionKind } from "@/lib/boosts";
+import type { BoostKind } from "@/lib/boosts";
 import type { VillageOwnership } from "@/lib/ownership";
 import type { UpgradeType, VillageType } from "@/lib/types";
 
@@ -47,7 +47,7 @@ export interface VillageSnapshot {
   /** Builder's Apprentice / Lab Assistant as of the latest export. */
   helpers: Helpers;
   /** Most recent potion that can still be undone. */
-  undoableBoost: { kind: PotionKind; createdAt: string } | null;
+  undoableBoost: { kind: BoostKind; createdAt: string } | null;
   upgrades: VillageUpgrade[];
 }
 

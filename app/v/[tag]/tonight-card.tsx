@@ -1,7 +1,8 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
-import { CheckCircle2, CornerDownRight, FlaskConical, FlaskRound, Hammer, Moon, type LucideIcon } from "lucide-react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { Check, CheckCircle2, CornerDownRight, FlaskConical, FlaskRound, Hammer, Loader2, Moon, type LucideIcon } from "lucide-react";
 import {
   describeFix,
   HELPER_NAMES,
@@ -138,6 +139,7 @@ export function TonightCard({
   boostEndsAt = {},
   savedNight = null,
   onNightChange,
+  editTag,
 }: {
   rows: TonightRow[];
   now: number | null;
@@ -148,6 +150,8 @@ export function TonightCard({
   savedNight?: NightHours | null;
   /** Owner only: also save a new night to the server (for the bedtime check). */
   onNightChange?: (h: NightHours) => void;
+  /** Set when the viewer may change this village: shows "I used it" on helper lines. */
+  editTag?: string;
 }) {
   const [hours, setLocalHours] = useNightHours(savedNight);
   const setHours = (h: NightHours) => {
@@ -167,7 +171,7 @@ export function TonightCard({
         title={<span id="tonight-title">Tonight</span>}
         actions={<NightPicker hours={hours} onChange={setHours} />}
       />
-      {now === null ? <div className="h-40" aria-hidden /> : <TonightBody rows={rows} now={now} hours={hours} helpers={helpers} boostEndsAt={boostEndsAt} />}
+      {now === null ? <div className="h-40" aria-hidden /> : <TonightBody rows={rows} now={now} hours={hours} helpers={helpers} boostEndsAt={boostEndsAt} editTag={editTag} />}
     </Card>
   );
 }
@@ -208,13 +212,17 @@ function TonightBody({
   hours,
   helpers,
   boostEndsAt,
+  editTag,
 }: {
   rows: TonightRow[];
   now: number;
   hours: NightHours;
   helpers: Helpers;
   boostEndsAt: Partial<Record<HelperKind, number | null>>;
+  editTag?: string;
 }) {
+  // A helper can be logged as used right now only if it's free now
+  const canUse = (helper: HelperKind) => Boolean(editTag) && (helpers[helper]?.readyAt ?? Infinity) <= now;
   const offset = -new Date().getTimezoneOffset();
   const night = nightWindow(now, offset, hours);
   const plan = planNight(rows, night, now);
@@ -291,6 +299,9 @@ function TonightBody({
                     <span>
                       {i > 0 && "Or: "}
                       {fixText(fix, labelOf)}
+                      {fix.kind === "helper" && canUse(fix.helper) && (
+                        <UseHelperButton tag={editTag!} helper={fix.helper} upgradeId={item.id} />
+                      )}
                     </span>
                   </li>
                 ))}
@@ -303,7 +314,18 @@ function TonightBody({
       {bedtimePlan.helperTips.length > 0 && (
         <ul className="space-y-1.5">
           {bedtimePlan.helperTips.map((tip) => (
-            <HelperLine key={tip.helper} tip={tip} label={labelOf(tip.suggestId)} level={helpers[tip.helper]!.level} now={now} />
+            <HelperLine
+              key={tip.helper}
+              tip={tip}
+              label={labelOf(tip.suggestId)}
+              level={helpers[tip.helper]!.level}
+              now={now}
+              action={
+                tip.suggestId && canUse(tip.helper) ? (
+                  <UseHelperButton tag={editTag!} helper={tip.helper} upgradeId={tip.suggestId} />
+                ) : null
+              }
+            />
           ))}
         </ul>
       )}
@@ -366,7 +388,19 @@ const HELPER_ICON: Record<HelperKind, { Icon: LucideIcon; tone: Tone }> = {
 };
 
 /** A helper not needed tonight: when it's free, and where its full value counts. */
-function HelperLine({ tip, label, level, now }: { tip: HelperTip; label: string | null; level: number; now: number }) {
+function HelperLine({
+  tip,
+  label,
+  level,
+  now,
+  action,
+}: {
+  tip: HelperTip;
+  label: string | null;
+  level: number;
+  now: number;
+  action: ReactNode;
+}) {
   const { Icon, tone } = HELPER_ICON[tip.helper];
   const name = HELPER_NAMES[tip.helper];
   const hours = helperSavesSeconds(level) / 3600;
@@ -383,6 +417,7 @@ function HelperLine({ tip, label, level, now }: { tip: HelperTip; label: string 
       <span>
         <b className="text-cream/90">{name}</b> {text}
         <span className="text-faint"> (as of your last export)</span>
+        {action}
       </span>
     </li>
   );
@@ -451,5 +486,58 @@ function Strip({ rows, now, offset, hours }: { rows: TonightRow[]; now: number; 
         )}
       </div>
     </div>
+  );
+}
+
+const HELPER_BOOST = { builder: "BUILDER_APPRENTICE", lab: "LAB_ASSISTANT" } as const;
+
+/**
+ * "I used it": logs the helper's hour on this upgrade, so its timer and the
+ * helper's next shift stay right until the next sync. Undo is on the Potions card.
+ */
+function UseHelperButton({ tag, helper, upgradeId }: { tag: string; helper: HelperKind; upgradeId: string }) {
+  const router = useRouter();
+  const [state, setState] = useState<"idle" | "pending" | "done" | { error: string }>("idle");
+  const use = async () => {
+    setState("pending");
+    try {
+      const res = await fetch("/api/village/boosts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag, kind: HELPER_BOOST[helper], upgradeId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setState({ error: data.error ?? "Something went wrong." });
+        return;
+      }
+      setState("done");
+      router.refresh();
+    } catch {
+      setState({ error: "Couldn't reach ClashSync. Try again." });
+    }
+  };
+
+  if (state === "done") {
+    return (
+      <span className="ml-2 inline-flex items-center gap-1 text-grass">
+        <Check className="w-3.5 h-3.5" aria-hidden /> Logged
+      </span>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={use}
+        disabled={state === "pending"}
+        title={`Tap after you put your ${HELPER_NAMES[helper]} to work in the game`}
+        className="ml-2 inline-flex cursor-pointer items-center gap-1 rounded-md border-2 border-grass/60 px-1.5 py-px align-middle text-xs font-extrabold text-grass transition hover:bg-grass/15 disabled:cursor-wait disabled:opacity-60"
+      >
+        {state === "pending" && <Loader2 className="w-3 h-3 animate-spin" aria-hidden />}
+        I used it
+      </button>
+      {typeof state === "object" && <span className="block mt-1 text-[#ff8a80]">{state.error}</span>}
+    </>
   );
 }

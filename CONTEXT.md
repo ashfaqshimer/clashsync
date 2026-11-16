@@ -24,7 +24,7 @@ Short guide for AI agents (Gemini and others). `CLAUDE.md` is the full guide; wh
 
 ### B. Potions
 - Builder Potion: builders 10× for 1h (up to 9h saved). Research Potion: lab 24× for 1h (up to 23h saved). Only `current_finish_time` changes; `original_finish_time` keeps the export's time.
-- Potions stack after `villages.builder_boost_ends_at` / `lab_boost_ends_at`. Each one is logged in `boosts`, and only the latest `APPLIED` one can be undone (if its timers are unchanged). A re-sync marks boosts `SUPERSEDED`.
+- Potions stack after `villages.builder_boost_ends_at` / `lab_boost_ends_at`. Helper uses ("I used it": `BUILDER_APPRENTICE` / `LAB_ASSISTANT`) go in the same log and move `apprentice_ready_at` / `lab_assistant_ready_at`. Each one is logged in `boosts`, and only the latest `APPLIED` one can be undone (if its timers are unchanged). A re-sync marks boosts `SUPERSEDED`.
 
 ### C. Discord Alerts
 - Each village picks a lead time (`alert_lead_minutes`, default 5; 0 = when done).

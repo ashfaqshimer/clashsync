@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FlaskConical, Hammer, Loader2, Undo2, Zap } from "lucide-react";
-import { boostedFinishTime, nextBoostWindow, POTIONS, type PotionKind } from "@/lib/boosts";
+import { BOOST_LABELS, boostedFinishTime, nextBoostWindow, POTIONS, type PotionKind } from "@/lib/boosts";
 import { formatDuration } from "@/lib/parser";
 import type { VillageSnapshot } from "@/lib/village";
 import { IconChip, type Tone } from "@/app/_components/ui/badge";
@@ -69,7 +69,7 @@ export function PotionBar({
                 )} saved across ${data.upgradesBoosted} upgrade${data.upgradesBoosted === 1 ? "" : "s"}.`,
                 tone: "ok",
               }
-            : { text: "Potion undone. Timers restored.", tone: "ok" }
+            : { text: "Undone. Timers restored.", tone: "ok" }
         );
         router.refresh();
       } else {
@@ -105,7 +105,7 @@ export function PotionBar({
             ) : (
               <Undo2 className="w-3.5 h-3.5" />
             )}
-            Undo {POTIONS[village.undoableBoost.kind].label}
+            Undo {BOOST_LABELS[village.undoableBoost.kind]}
           </Button>
           )
         }

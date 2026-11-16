@@ -164,7 +164,7 @@ export function DashboardFixtures() {
       </Section>
 
       <Section title="Tonight · bedtime fixes: stay up, Builder's Apprentice, Builder Potion, Lab Assistant later, pet (no fix)">
-        <TonightCard now={now} rows={tonightRows(now)} helpers={{ builder: { level: 8, readyAt: now - 3600 }, lab: { level: 12, readyAt: now + 26 * 3600 } }} />
+        <TonightCard now={now} editTag="#2PP0JQ9V" rows={tonightRows(now)} helpers={{ builder: { level: 8, readyAt: now - 3600 }, lab: { level: 12, readyAt: now + 26 * 3600 } }} />
       </Section>
     </div>
   );
