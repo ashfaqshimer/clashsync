@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
-import { runIdleReminderSweep, runNotificationSweep } from "@/lib/notify";
+import { runBedtimeCheckSweep, runIdleReminderSweep, runNotificationSweep } from "@/lib/notify";
 
 /**
  * Called by an Upstash QStash schedule (see scripts/setup-qstash-schedule.ts).
@@ -37,7 +37,11 @@ export async function POST(request: NextRequest) {
       console.error("[notify] idle sweep failed:", err instanceof Error ? err.message : err);
       return null;
     });
-    return NextResponse.json({ success: true, ...summary, idle });
+    const bedtime = await runBedtimeCheckSweep().catch((err: unknown) => {
+      console.error("[notify] bedtime sweep failed:", err instanceof Error ? err.message : err);
+      return null;
+    });
+    return NextResponse.json({ success: true, ...summary, idle, bedtime });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[notify] sweep failed:", message);

@@ -119,3 +119,25 @@ describe("planBedtime potions", () => {
     expect(plan.fixes.pet).toBeUndefined();
   });
 });
+
+describe("bedtimeCheckMessage", () => {
+  it("lists each overnight slot with its cheapest fix in Discord time tags", async () => {
+    const { bedtimeCheckMessage } = await import("./alerts");
+    const msg = bedtimeCheckMessage(
+      "#PYL",
+      [
+        { label: "Cannon", finish: BED + 0.5 * H, fix: { kind: "stayUp", until: BED + 0.5 * H } },
+        { label: "Unicorn", finish: BED + 3 * H, fix: null },
+      ],
+      BED + 8 * H,
+      "https://example.test/v/PYL#tonight"
+    );
+    expect(msg).toBe(
+      "🌙 Bedtime check · #PYL\n" +
+        "2 slots go idle tonight, about 13h before you're up. 1 can be fixed:\n" +
+        `• **Cannon** done <t:${BED + 0.5 * H}:t>: Stay up until <t:${BED + 0.5 * H}:t> and start the next one\n` +
+        `• **Unicorn** done <t:${BED + 3 * H}:t>: idle until <t:${BED + 8 * H}:t>\n` +
+        "https://example.test/v/PYL#tonight"
+    );
+  });
+});

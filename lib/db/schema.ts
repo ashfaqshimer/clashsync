@@ -148,6 +148,15 @@ export const villages = pgTable(
     idleReminders: boolean("idle_reminders").default(true).notNull(),
     // Set when that nudge is claimed; a sync clears it. At most one nudge per sync.
     idleRemindedAt: timestamp("idle_reminded_at", { withTimezone: true }),
+    // "Bedtime check": a message an hour before the owner's bedtime when something
+    // would sit idle overnight (lib/notify.ts, lib/bedtime.ts). Off until turned on.
+    bedtimeCheck: boolean("bedtime_check").default(false).notNull(),
+    // The owner's night in their own time zone (IANA, e.g. "Asia/Colombo")
+    nightStartHour: integer("night_start_hour").default(23).notNull(),
+    nightEndHour: integer("night_end_hour").default(7).notNull(),
+    timeZone: text("time_zone"),
+    // Last bedtime check claimed: at most one per night
+    bedtimeCheckedAt: timestamp("bedtime_checked_at", { withTimezone: true }),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -155,6 +164,7 @@ export const villages = pgTable(
   (table) => [
     index("villages_owner_idx").on(table.ownerId),
     check("villages_alert_lead_check", sql`${table.alertLeadMinutes} between 0 and 1440`),
+    check("villages_night_hours_check", sql`${table.nightStartHour} between 0 and 23 and ${table.nightEndHour} between 0 and 23`),
   ]
 );
 

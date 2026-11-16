@@ -47,6 +47,8 @@ function base(now: number): VillageSnapshot {
     dmAlerts: true,
     alertLeadMinutes: 5,
     idleReminders: true,
+    bedtimeCheck: true,
+    savedNight: { startHour: 23, endHour: 7 },
     builderBoostEndsAt: null,
     labBoostEndsAt: now + 38 * 60,
     helpers: { builder: { level: 8, readyAt: now - 3600 }, lab: { level: 12, readyAt: now + 5 * 3600 } },

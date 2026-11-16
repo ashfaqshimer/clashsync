@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Loader2, MessageCircle, Moon } from "lucide-react";
+import { BedDouble, BellRing, Loader2, MessageCircle, Moon } from "lucide-react";
+import type { NightHours } from "@/lib/timeline";
+import { useNightHours } from "./tonight-card";
 import { ALERT_LEAD_OPTIONS, alertLeadLabel, SWEEP_INTERVAL_SECONDS } from "@/lib/alerts";
 import { IconChip } from "@/app/_components/ui/badge";
 import { Button, buttonClass } from "@/app/_components/ui/button";
 import { Card, Heading, Well } from "@/app/_components/ui/card";
 import { Hint } from "@/app/_components/ui/hint";
 
-type Action = "save" | "test" | "remove" | "dm-on" | "dm-off" | "lead" | "idle-on" | "idle-off";
+type Action = "save" | "test" | "remove" | "dm-on" | "dm-off" | "lead" | "idle-on" | "idle-off" | "bed-on" | "bed-off";
 
 const METHOD: Record<Action, string> = {
   save: "PUT",
@@ -20,6 +22,8 @@ const METHOD: Record<Action, string> = {
   lead: "PATCH",
   "idle-on": "PATCH",
   "idle-off": "PATCH",
+  "bed-on": "PATCH",
+  "bed-off": "PATCH",
 };
 
 const SUCCESS: Record<Action, string> = {
@@ -31,6 +35,8 @@ const SUCCESS: Record<Action, string> = {
   lead: "Alert time saved.",
   "idle-on": "Idle reminders are on.",
   "idle-off": "Idle reminders turned off.",
+  "bed-on": "Bedtime check is on. Change your bedtime on the Tonight card.",
+  "bed-off": "Bedtime check turned off.",
 };
 
 export function AlertsCard({
@@ -39,6 +45,8 @@ export function AlertsCard({
   dmOn,
   leadMinutes,
   idleReminders,
+  bedtimeCheck,
+  savedNight,
   dmAvailable,
 }: {
   tag: string;
@@ -46,9 +54,13 @@ export function AlertsCard({
   dmOn: boolean;
   leadMinutes: number;
   idleReminders: boolean;
+  bedtimeCheck: boolean;
+  savedNight: NightHours | null;
   dmAvailable: boolean;
 }) {
   const router = useRouter();
+  // Same night as the Tonight card's picker
+  const [night] = useNightHours(savedNight);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState<Action | null>(null);
@@ -68,6 +80,12 @@ export function AlertsCard({
           dm: action === "dm-on" ? true : action === "dm-off" ? false : undefined,
           leadMinutes: action === "lead" ? lead : undefined,
           idleReminders: action === "idle-on" ? true : action === "idle-off" ? false : undefined,
+          bedtimeCheck: action === "bed-on" ? true : action === "bed-off" ? false : undefined,
+          // Turning it on saves the night and time zone it should follow
+          ...(action === "bed-on" && {
+            night,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
         }),
       });
       const data = await res.json();
@@ -239,6 +257,33 @@ export function AlertsCard({
         </Well>
       )}
 
+      {/* Bedtime check: an hour before bed, what would sit idle overnight */}
+      {anyOn && (
+        <Well className="flex flex-wrap items-center justify-between gap-2 p-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-cream/90">
+            <BedDouble className={`w-4 h-4 ${bedtimeCheck ? "text-grass" : "text-faint"}`} />
+            {bedtimeCheck
+              ? `Bedtime check at ${hourName((night.startHour + 23) % 24)}`
+              : "Send me a bedtime check"}
+            <Hint label="bedtime check">
+              An hour before your bedtime ({hourName(night.startHour)}, set on the Tonight card), we&apos;ll
+              message you if a builder, the lab or the pet house would sit idle while you sleep, with the
+              cheapest way to fix each one. No message when everything keeps working all night.
+            </Hint>
+          </div>
+          <button
+            type="button"
+            onClick={() => call(bedtimeCheck ? "bed-off" : "bed-on")}
+            disabled={busy}
+            className={secondary}
+          >
+            {spinner("bed-on")}
+            {spinner("bed-off")}
+            {bedtimeCheck ? "Turn off" : "Turn on"}
+          </button>
+        </Well>
+      )}
+
       {message && (
         <p role="status" className={`text-sm font-bold ${message.tone === "ok" ? "text-grass" : "text-[#ff8a80]"}`}>
           {message.text}
@@ -246,4 +291,9 @@ export function AlertsCard({
       )}
     </Card>
   );
+}
+
+/** "11 PM" style label for an hour of the day. */
+function hourName(h: number) {
+  return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
 }

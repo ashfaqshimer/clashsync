@@ -15,8 +15,18 @@ import { isAlertLead } from "@/lib/alerts";
 import { getVillageAccess } from "@/lib/ownership";
 import { openWebhookUrl, sealWebhookUrl } from "@/lib/secrets";
 import { normalizeTag, tagToSlug } from "@/lib/tags";
+import { isNightHours, isTimeZone } from "@/lib/timeline";
 
-type Body = { tag?: unknown; webhookUrl?: unknown; dm?: unknown; leadMinutes?: unknown; idleReminders?: unknown };
+type Body = {
+  tag?: unknown;
+  webhookUrl?: unknown;
+  dm?: unknown;
+  leadMinutes?: unknown;
+  idleReminders?: unknown;
+  bedtimeCheck?: unknown;
+  night?: unknown;
+  timeZone?: unknown;
+};
 
 function fail(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
@@ -84,12 +94,32 @@ export async function PUT(request: NextRequest) {
 /**
  * PATCH { tag, leadMinutes } → how early to alert (see lib/alerts.ts).
  * PATCH { tag, idleReminders } → the "anything sitting idle?" nudge on/off.
+ * PATCH { tag, bedtimeCheck?, night?, timeZone? } → the bedtime check on/off and the
+ *   owner's night ({startHour, endHour} in their IANA time zone). Either part alone is fine.
  * PATCH { tag, dm } → turn DM alerts on (sends a confirmation DM first) or off.
  */
 export async function PATCH(request: NextRequest) {
   const loaded = await loadOwnedVillage(request);
   if (loaded instanceof NextResponse) return loaded;
   const { village, tag, body } = loaded;
+
+  if (body.bedtimeCheck !== undefined || body.night !== undefined) {
+    if (body.bedtimeCheck !== undefined && typeof body.bedtimeCheck !== "boolean") return fail("Invalid request.", 400);
+    if (body.night !== undefined && !isNightHours(body.night)) return fail("Pick one of the offered times.", 400);
+    if (body.timeZone !== undefined && !isTimeZone(body.timeZone)) return fail("Unknown time zone.", 400);
+    if (body.bedtimeCheck === true && !body.timeZone && !village.timeZone) {
+      return fail("Your time zone is needed to know when it's bedtime.", 400);
+    }
+    await db
+      .update(villages)
+      .set({
+        ...(typeof body.bedtimeCheck === "boolean" ? { bedtimeCheck: body.bedtimeCheck } : {}),
+        ...(isNightHours(body.night) ? { nightStartHour: body.night.startHour, nightEndHour: body.night.endHour } : {}),
+        ...(isTimeZone(body.timeZone) ? { timeZone: body.timeZone } : {}),
+      })
+      .where(eq(villages.id, village.id));
+    return NextResponse.json({ success: true });
+  }
 
   if (body.idleReminders !== undefined) {
     if (typeof body.idleReminders !== "boolean") return fail("Invalid request.", 400);

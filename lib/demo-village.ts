@@ -43,6 +43,8 @@ export function demoVillage(now: number): VillageSnapshot {
     dmAlerts: false,
     alertLeadMinutes: 5,
     idleReminders: true,
+    bedtimeCheck: false,
+    savedNight: null,
     builderBoostEndsAt: null,
     labBoostEndsAt: null,
     helpers: { builder: { level: 5, readyAt: now - 2 * 3600 }, lab: { level: 6, readyAt: now + 9 * 3600 } },

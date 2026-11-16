@@ -74,3 +74,22 @@ describe("isEvening", () => {
     expect(isEvening(MIDNIGHT + 21 * H, 0, late)).toBe(false);
   });
 });
+
+describe("time zones", () => {
+  it("works out the offset, daylight saving included", async () => {
+    const { timeZoneOffsetMinutes } = await import("./timeline");
+    expect(timeZoneOffsetMinutes("Asia/Colombo", MIDNIGHT)).toBe(330);
+    expect(timeZoneOffsetMinutes("UTC", MIDNIGHT)).toBe(0);
+    expect(timeZoneOffsetMinutes("America/New_York", Date.UTC(2026, 0, 15) / 1000)).toBe(-300);
+    expect(timeZoneOffsetMinutes("America/New_York", Date.UTC(2026, 6, 15) / 1000)).toBe(-240);
+  });
+
+  it("validates zones and night hours", async () => {
+    const { isNightHours, isTimeZone } = await import("./timeline");
+    expect(isTimeZone("Europe/London")).toBe(true);
+    expect(isTimeZone("Mars/Base")).toBe(false);
+    expect(isTimeZone(5)).toBe(false);
+    expect(isNightHours({ startHour: 23, endHour: 7 })).toBe(true);
+    expect(isNightHours({ startHour: 15, endHour: 7 })).toBe(false);
+  });
+});

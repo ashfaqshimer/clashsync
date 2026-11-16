@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 vi.mock("@/lib/db", async () => (await import("./test-db")).dbModule());
 
 const { testDb, resetTestDb, createAccount, villages, upgrades } = await import("./test-db");
-const { runIdleReminderSweep, runNotificationSweep } = await import("@/lib/notify");
+const { runBedtimeCheckSweep, runIdleReminderSweep, runNotificationSweep } = await import("@/lib/notify");
 const { sealWebhookUrl } = await import("@/lib/secrets");
 const { IDLE_AFTER_SECONDS, IDLE_WINDOW_SECONDS, SWEEP_INTERVAL_SECONDS } = await import("@/lib/alerts");
 
@@ -214,5 +214,71 @@ describe("runIdleReminderSweep", () => {
 
     replies = { webhook: 204, dm: 200 };
     expect(await runIdleReminderSweep(NOW + SWEEP_INTERVAL_SECONDS)).toMatchObject({ sent: 1 });
+  });
+});
+
+describe("runBedtimeCheckSweep", () => {
+  // NOW is 08:00 UTC, so a UTC village's 11 PM bedtime is NOW + 15h; the check is due from NOW + 14h
+  const H = 3600;
+  const turnOn = (timeZone = "UTC") =>
+    testDb.update(villages).set({ bedtimeCheck: true, timeZone }).where(eq(villages.id, VILLAGE_ID));
+
+  it("sends once, in the hour before bedtime, when something would sit idle overnight", async () => {
+    await seedVillage();
+    await turnOn();
+    await seedUpgrade(17 * H, "Cannon"); // 1 AM
+    await seedUpgrade(30 * H, "Mortar"); // after wake-up
+
+    expect(await runBedtimeCheckSweep(NOW + 13 * H)).toMatchObject({ claimed: 0 });
+    expect(await runBedtimeCheckSweep(NOW + 14.5 * H)).toMatchObject({ claimed: 1, sent: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].content).toContain("Bedtime check · #PYL");
+    expect(calls[0].content).toContain("1 slot goes idle tonight");
+    expect(calls[0].content).toContain(`**Cannon** done <t:${NOW + 17 * H}:t>`);
+    expect(calls[0].content).not.toContain("Mortar");
+
+    // Once per night
+    expect(await runBedtimeCheckSweep(NOW + 14.9 * H)).toMatchObject({ claimed: 0 });
+    // …and again the next evening
+    expect(await runBedtimeCheckSweep(NOW + 38.5 * H)).toMatchObject({ claimed: 1 });
+  });
+
+  it("follows the owner's time zone", async () => {
+    await seedVillage();
+    await turnOn("Asia/Colombo"); // 11 PM there = 17:30 UTC = NOW + 9.5h
+    await seedUpgrade(11 * H);
+    expect(await runBedtimeCheckSweep(NOW + 8 * H)).toMatchObject({ claimed: 0 });
+    expect(await runBedtimeCheckSweep(NOW + 9 * H)).toMatchObject({ claimed: 1, sent: 1 });
+  });
+
+  it("stays quiet when everything works all night", async () => {
+    await seedVillage();
+    await turnOn();
+    await seedUpgrade(30 * H);
+    expect(await runBedtimeCheckSweep(NOW + 14.5 * H)).toMatchObject({ claimed: 1, quiet: 1, sent: 0 });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("respects the off switch, a missing time zone and villages with no destination", async () => {
+    await seedVillage({ webhook: false });
+    await seedUpgrade(17 * H);
+    await turnOn();
+    expect(await runBedtimeCheckSweep(NOW + 14.5 * H)).toMatchObject({ claimed: 0 });
+
+    await testDb.update(villages).set({ dmAlerts: true, timeZone: null }).where(eq(villages.id, VILLAGE_ID));
+    expect(await runBedtimeCheckSweep(NOW + 14.5 * H)).toMatchObject({ claimed: 0 });
+
+    await testDb.update(villages).set({ timeZone: "UTC", bedtimeCheck: false }).where(eq(villages.id, VILLAGE_ID));
+    expect(await runBedtimeCheckSweep(NOW + 14.5 * H)).toMatchObject({ claimed: 0 });
+  });
+
+  it("releases the claim for a retry when nothing got through", async () => {
+    await seedVillage();
+    await turnOn();
+    await seedUpgrade(17 * H);
+    replies = { webhook: 503, dm: 200 };
+    expect(await runBedtimeCheckSweep(NOW + 14.5 * H)).toMatchObject({ retrying: 1 });
+    replies = { webhook: 204, dm: 200 };
+    expect(await runBedtimeCheckSweep(NOW + 14.6 * H)).toMatchObject({ sent: 1 });
   });
 });

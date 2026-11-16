@@ -3,6 +3,7 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import { CheckCircle2, CornerDownRight, FlaskConical, FlaskRound, Hammer, Moon, type LucideIcon } from "lucide-react";
 import {
+  describeFix,
   HELPER_NAMES,
   helperSavesSeconds,
   planBedtime,
@@ -11,9 +12,11 @@ import {
   type Helpers,
   type HelperTip,
 } from "@/lib/bedtime";
-import { POTIONS } from "@/lib/boosts";
 import {
+  BEDTIME_HOURS,
   DEFAULT_NIGHT,
+  isNightHours,
+  WAKE_HOURS,
   TIMELINE_WINDOW_SECONDS,
   nightBands,
   nightWindow,
@@ -46,8 +49,6 @@ const DOT: Record<Tone, string> = {
   discord: "bg-discord",
 };
 
-const BEDTIMES = [20, 21, 22, 23, 0, 1, 2];
-const WAKE_TIMES = [4, 5, 6, 7, 8, 9, 10, 11];
 const STORAGE_KEY = "clashsync.night";
 
 /** "11 PM" style label for an hour of the day. */
@@ -66,24 +67,9 @@ function idleText(seconds: number) {
   return h < 1 ? "under 1h" : `${h}h`;
 }
 
-/** One line per fix, player-friendly. `labelOf` names upgrades a potion would move into the night. */
-export function fixText(fix: BedtimeFix, labelOf: (id: string) => string | null = () => null): string {
-  switch (fix.kind) {
-    case "stayUp":
-      return `Stay up until ${clock(fix.until)} and start the next one`;
-    case "helper":
-      return `Use your ${HELPER_NAMES[fix.helper]} by ${clock(fix.useBy)}: done at ${clock(fix.newFinish)}, before bed`;
-    case "potion": {
-      const moved = fix.movesIntoNight.map(labelOf).filter(Boolean);
-      return [
-        `Drink a ${POTIONS[fix.potion].label} at ${clock(fix.useAt)}: done at ${clock(fix.newFinish)}, before bed`,
-        fix.wasted && " (some upgrades are too close to done to get all of it)",
-        moved.length > 0 && `, but ${moved.join(" and ")} would then finish overnight`,
-      ]
-        .filter(Boolean)
-        .join("");
-    }
-  }
+/** One line per fix, in the viewer's clock. */
+export function fixText(fix: BedtimeFix, labelOf?: (id: string) => string | null): string {
+  return describeFix(fix, clock, labelOf);
 }
 
 /** "2 of them can be fixed for free, 1 more with a potion." */
@@ -115,13 +101,17 @@ function subscribeNight(cb: () => void) {
   };
 }
 
-export function useNightHours(): [NightHours, (h: NightHours) => void] {
-  // Server and first client render use the default, so the markup matches
+/**
+ * The viewer's night: this browser's choice, else `fallback` (the owner's night
+ * saved on the server), else 11 PM–7 AM.
+ */
+export function useNightHours(fallback?: NightHours | null): [NightHours, (h: NightHours) => void] {
+  // Server and first client render use the fallback, so the markup matches
   const saved = useSyncExternalStore(subscribeNight, readSavedNight, () => "");
-  let hours: NightHours = DEFAULT_NIGHT;
+  let hours: NightHours = fallback ?? DEFAULT_NIGHT;
   try {
     const parsed = saved ? JSON.parse(saved) : null;
-    if (BEDTIMES.includes(parsed?.startHour) && WAKE_TIMES.includes(parsed?.endHour)) hours = parsed;
+    if (isNightHours(parsed)) hours = parsed;
   } catch {
     // Bad value: keep the default
   }
@@ -146,14 +136,24 @@ export function TonightCard({
   now,
   helpers = {},
   boostEndsAt = {},
+  savedNight = null,
+  onNightChange,
 }: {
   rows: TonightRow[];
   now: number | null;
   helpers?: Helpers;
   /** When a running Builder / Research Potion ends. */
   boostEndsAt?: Partial<Record<HelperKind, number | null>>;
+  /** The owner's night saved on the server, used until this browser picks one. */
+  savedNight?: NightHours | null;
+  /** Owner only: also save a new night to the server (for the bedtime check). */
+  onNightChange?: (h: NightHours) => void;
 }) {
-  const [hours, setHours] = useNightHours();
+  const [hours, setLocalHours] = useNightHours(savedNight);
+  const setHours = (h: NightHours) => {
+    setLocalHours(h);
+    onNightChange?.(h);
+  };
   if (rows.length === 0) return null;
 
   return (
@@ -183,7 +183,7 @@ function NightPicker({ hours, onChange }: { hours: NightHours; onChange: (h: Nig
         onChange={(e) => onChange({ ...hours, startHour: Number(e.target.value) })}
         className={select}
       >
-        {BEDTIMES.map((h) => (
+        {BEDTIME_HOURS.map((h) => (
           <option key={h} value={h}>{hourName(h)}</option>
         ))}
       </select>
@@ -194,7 +194,7 @@ function NightPicker({ hours, onChange }: { hours: NightHours; onChange: (h: Nig
         onChange={(e) => onChange({ ...hours, endHour: Number(e.target.value) })}
         className={select}
       >
-        {WAKE_TIMES.map((h) => (
+        {WAKE_HOURS.map((h) => (
           <option key={h} value={h}>{hourName(h)}</option>
         ))}
       </select>

@@ -1,9 +1,10 @@
-import { and, eq, exists, inArray, isNotNull, isNull, lte, not, or, sql, between } from "drizzle-orm";
+import { and, eq, exists, gt, inArray, isNotNull, isNull, lt, lte, not, or, sql, between } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { authAccounts, upgrades, villages } from "@/lib/db/schema";
 import { appUrl } from "@/lib/app-url";
 import {
   alertMessage,
+  bedtimeCheckMessage,
   IDLE_AFTER_SECONDS,
   IDLE_WINDOW_SECONDS,
   idleReminderMessage,
@@ -13,6 +14,8 @@ import { sendDiscordDm, sendDiscordMessage } from "@/lib/discord";
 import { tagToSlug } from "@/lib/tags";
 import { openWebhookUrl } from "@/lib/secrets";
 import { upgradeLabel } from "@/lib/upgrade-label";
+import { BEDTIME_CHECK_LEAD_SECONDS, FIX_RANK, helperSlot, planBedtime, type Helpers } from "@/lib/bedtime";
+import { isTimeZone, nightWindow, timeZoneOffsetMinutes } from "@/lib/timeline";
 
 /** Finished longer ago than this (cron gap, old export re-synced) → don't announce. */
 const STALE_AFTER_SECONDS = 30 * 60;
@@ -247,6 +250,158 @@ export async function runIdleReminderSweep(now = Math.floor(Date.now() / 1000)):
       } else {
         // No destination after all (e.g. webhook can't be decrypted) or a hard failure:
         // keep the claim so this sync isn't nudged again
+        summary.failed++;
+      }
+    })
+  );
+
+  return summary;
+}
+
+export interface BedtimeSweepSummary {
+  claimed: number;
+  sent: number;
+  /** Nothing would sit idle tonight: no message. */
+  quiet: number;
+  failed: number;
+  retrying: number;
+}
+
+/** A claim lasts this long, so each night gets at most one bedtime check. */
+const BEDTIME_CHECK_COOLDOWN_SECONDS = 20 * 3600;
+
+/**
+ * "Bedtime check": about an hour before each owner's bedtime (their own time
+ * zone), sends what would sit idle overnight with the cheapest fix for each.
+ * Villages with nothing idle tonight get no message. Claimed with
+ * `bedtime_checked_at`, so overlapping runs can't double-send.
+ */
+export async function runBedtimeCheckSweep(now = Math.floor(Date.now() / 1000)): Promise<BedtimeSweepSummary> {
+  const summary: BedtimeSweepSummary = { claimed: 0, sent: 0, quiet: 0, failed: 0, retrying: 0 };
+  const cooledDown = or(
+    isNull(villages.bedtimeCheckedAt),
+    lt(villages.bedtimeCheckedAt, new Date((now - BEDTIME_CHECK_COOLDOWN_SECONDS) * 1000))
+  );
+
+  // Few villages opt in, and "an hour before bedtime" depends on each one's
+  // time zone, so the due check runs here rather than in SQL
+  const candidates = await db
+    .select({
+      id: villages.id,
+      timeZone: villages.timeZone,
+      startHour: villages.nightStartHour,
+      endHour: villages.nightEndHour,
+    })
+    .from(villages)
+    .where(
+      and(
+        eq(villages.bedtimeCheck, true),
+        isNotNull(villages.timeZone),
+        or(isNotNull(villages.discordWebhookUrl), eq(villages.dmAlerts, true)),
+        cooledDown
+      )
+    );
+
+  const nights = new Map<string, { start: number; end: number }>();
+  for (const c of candidates) {
+    if (!c.timeZone || !isTimeZone(c.timeZone)) continue;
+    const night = nightWindow(now, timeZoneOffsetMinutes(c.timeZone, now), {
+      startHour: c.startHour,
+      endHour: c.endHour,
+    });
+    if (night.start > now && night.start - now <= BEDTIME_CHECK_LEAD_SECONDS) nights.set(c.id, night);
+  }
+  if (nights.size === 0) return summary;
+
+  const claimed = await db
+    .update(villages)
+    .set({ bedtimeCheckedAt: new Date(now * 1000) })
+    .where(and(inArray(villages.id, [...nights.keys()]), cooledDown))
+    .returning({
+      id: villages.id,
+      apprenticeLevel: villages.apprenticeLevel,
+      apprenticeReadyAt: villages.apprenticeReadyAt,
+      labAssistantLevel: villages.labAssistantLevel,
+      labAssistantReadyAt: villages.labAssistantReadyAt,
+      builderBoostEndsAt: villages.builderBoostEndsAt,
+      labBoostEndsAt: villages.labBoostEndsAt,
+    });
+  summary.claimed = claimed.length;
+  if (claimed.length === 0) return summary;
+
+  const ids = claimed.map((c) => c.id);
+  const [recipientById, running] = await Promise.all([
+    loadRecipients(ids),
+    db
+      .select({
+        id: upgrades.id,
+        villageId: upgrades.villageId,
+        entityName: upgrades.entityName,
+        category: upgrades.category,
+        villageType: upgrades.villageType,
+        isGearUp: upgrades.isGearUp,
+        isExtraSlot: upgrades.isExtraSlot,
+        currentFinishTime: upgrades.currentFinishTime,
+      })
+      .from(upgrades)
+      .where(and(inArray(upgrades.villageId, ids), gt(upgrades.currentFinishTime, now))),
+  ]);
+
+  await Promise.all(
+    claimed.map(async (v) => {
+      const night = nights.get(v.id)!;
+      const rows = running.filter((u) => u.villageId === v.id);
+      const items = rows.map((u) => ({
+        id: u.id,
+        finish: u.currentFinishTime,
+        helper: helperSlot(u.category, u.villageType),
+        extra: u.isExtraSlot,
+      }));
+      const helpers: Helpers = {
+        ...(v.apprenticeLevel && v.apprenticeReadyAt !== null
+          ? { builder: { level: v.apprenticeLevel, readyAt: v.apprenticeReadyAt } }
+          : {}),
+        ...(v.labAssistantLevel && v.labAssistantReadyAt !== null
+          ? { lab: { level: v.labAssistantLevel, readyAt: v.labAssistantReadyAt } }
+          : {}),
+      };
+      const plan = planBedtime(items, night, now, helpers, { builder: v.builderBoostEndsAt, lab: v.labBoostEndsAt });
+      const label = (id: string) => {
+        const u = rows.find((r) => r.id === id);
+        return u ? upgradeLabel({ name: u.entityName, isGearUp: u.isGearUp, isExtraSlot: u.isExtraSlot }) : null;
+      };
+      // Main slots only: the Goblin finishing overnight costs nothing
+      const overnight = items
+        .filter((i) => !i.extra && i.finish >= night.start && i.finish <= night.end)
+        .sort((a, b) => a.finish - b.finish);
+      if (overnight.length === 0) {
+        summary.quiet++;
+        return;
+      }
+
+      const recipient = recipientById.get(v.id);
+      const outcome = recipient
+        ? await deliver(recipient, (tag) =>
+            bedtimeCheckMessage(
+              tag,
+              overnight.map((i) => ({
+                label: label(i.id) ?? "Upgrade",
+                finish: i.finish,
+                fix: [...(plan.fixes[i.id] ?? [])].sort((a, b) => FIX_RANK[a.kind] - FIX_RANK[b.kind])[0] ?? null,
+              })),
+              night.end,
+              `${appUrl()}/v/${tagToSlug(tag)}#tonight`,
+              label
+            )
+          )
+        : "failed";
+
+      if (outcome === "sent") {
+        summary.sent++;
+      } else if (outcome === "retry") {
+        summary.retrying++;
+        await db.update(villages).set({ bedtimeCheckedAt: null }).where(eq(villages.id, v.id));
+      } else {
         summary.failed++;
       }
     })

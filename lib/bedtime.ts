@@ -208,3 +208,43 @@ function potionFix(
   }
   return best && { ids: best.ids, fix: best.fix };
 }
+
+/** Which helper / potion slot an upgrade is in: home builder or lab, else none. */
+export function helperSlot(category: string, villageType: string): HelperKind | null {
+  if (villageType !== "HOME") return null;
+  return category === "BUILDER" ? "builder" : category === "LABORATORY" ? "lab" : null;
+}
+
+/**
+ * One line per fix, player-friendly. `time` formats an epoch (a local clock on
+ * the dashboard, a Discord <t:…:t> tag in messages); `labelOf` names upgrades
+ * a potion would move into the night.
+ */
+export function describeFix(
+  fix: BedtimeFix,
+  time: (epoch: number) => string,
+  labelOf: (id: string) => string | null = () => null
+): string {
+  switch (fix.kind) {
+    case "stayUp":
+      return `Stay up until ${time(fix.until)} and start the next one`;
+    case "helper":
+      return `Use your ${HELPER_NAMES[fix.helper]} by ${time(fix.useBy)}: done at ${time(fix.newFinish)}, before bed`;
+    case "potion": {
+      const moved = fix.movesIntoNight.map(labelOf).filter(Boolean);
+      return [
+        `Drink a ${POTIONS[fix.potion].label} at ${time(fix.useAt)}: done at ${time(fix.newFinish)}, before bed`,
+        fix.wasted && " (some upgrades are too close to done to get all of it)",
+        moved.length > 0 && `, but ${moved.join(" and ")} would then finish overnight`,
+      ]
+        .filter(Boolean)
+        .join("");
+    }
+  }
+}
+
+/** The bedtime check goes out this long before the player's bedtime. */
+export const BEDTIME_CHECK_LEAD_SECONDS = 3600;
+
+/** Cheapest fix first: free (helper, staying up) before a potion. */
+export const FIX_RANK: Record<BedtimeFix["kind"], number> = { helper: 0, stayUp: 1, potion: 2 };

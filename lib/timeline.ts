@@ -118,3 +118,48 @@ export function isEvening(
   const { start } = nightWindow(now, offsetMinutes, hours);
   return now < start && start - now <= leadHours * 3600;
 }
+
+/** Bedtimes and wake-up hours the night picker offers (and the server accepts). */
+export const BEDTIME_HOURS = [20, 21, 22, 23, 0, 1, 2] as const;
+export const WAKE_HOURS = [4, 5, 6, 7, 8, 9, 10, 11] as const;
+
+export function isNightHours(value: unknown): value is NightHours {
+  const v = value as Partial<NightHours> | null;
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    (BEDTIME_HOURS as readonly number[]).includes(v.startHour as number) &&
+    (WAKE_HOURS as readonly number[]).includes(v.endHour as number)
+  );
+}
+
+/** True for an IANA time zone this runtime knows ("Asia/Colombo"). */
+export function isTimeZone(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * UTC offset in minutes (east positive) of an IANA zone at an epoch, so the
+ * server can work out a player's local night (daylight saving included).
+ */
+export function timeZoneOffsetMinutes(timeZone: string, epoch: number): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(epoch * 1000));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second")) / 1000;
+  return Math.round((asUtc - epoch) / 60);
+}

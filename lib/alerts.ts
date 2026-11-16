@@ -9,6 +9,7 @@
  */
 
 import type { UpgradeType } from "./types";
+import { describeFix, type BedtimeFix } from "./bedtime";
 
 /** Must match the QStash schedule in scripts/setup-qstash-schedule.ts. */
 export const SWEEP_INTERVAL_SECONDS = 120;
@@ -142,4 +143,36 @@ export function carryOverNotified<T extends UpgradeIdentity>(
     pool.set(key, [...(pool.get(key) ?? []), p.notifiedAt]);
   }
   return next.map((n) => pool.get(identityKey(n))?.shift() ?? null);
+}
+
+export interface BedtimeCheckRow {
+  label: string;
+  finish: number;
+  /** Cheapest fix, if there is one (lib/bedtime.ts). */
+  fix: BedtimeFix | null;
+}
+
+/**
+ * "🌙 Bedtime check": what would sit idle while the owner sleeps, each with its
+ * cheapest fix. Times are Discord <t:…:t> tags, so every reader sees their own clock.
+ */
+export function bedtimeCheckMessage(
+  tag: string,
+  rows: BedtimeCheckRow[],
+  wakeAt: number,
+  link: string,
+  labelOf: (id: string) => string | null = () => null
+): string {
+  const t = (epoch: number) => `<t:${epoch}:t>`;
+  const idleHours = Math.max(1, Math.round(rows.reduce((sum, r) => sum + (wakeAt - r.finish), 0) / 3600));
+  const fixable = rows.filter((r) => r.fix).length;
+  const lines = rows.map(
+    (r) => `• **${r.label}** done ${t(r.finish)}: ${r.fix ? describeFix(r.fix, t, labelOf) : `idle until ${t(wakeAt)}`}`
+  );
+  return (
+    `🌙 Bedtime check · ${tag}\n` +
+    `${rows.length === 1 ? "1 slot goes" : `${rows.length} slots go`} idle tonight, about ${idleHours}h before you're up.` +
+    (fixable > 0 ? ` ${fixable === rows.length ? "Here's how to fix it:" : `${fixable} can be fixed:`}` : "") +
+    `\n${lines.join("\n")}\n${link}`
+  );
 }

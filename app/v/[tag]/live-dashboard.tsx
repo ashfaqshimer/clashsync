@@ -27,11 +27,11 @@ import { AlertsCard } from "./alerts-card";
 import { OwnershipCard, type OwnershipView } from "./ownership-card";
 import { PotionBar } from "./potion-bar";
 import { TonightCard, fixText, useNightHours, type TonightRow } from "./tonight-card";
-import { planBedtime } from "@/lib/bedtime";
+import { FIX_RANK, helperSlot, planBedtime } from "@/lib/bedtime";
 import { NextMoves, type NextMove } from "./next-moves";
 import { AccountSection } from "./account-section";
 import { DiscordLoginButton } from "@/app/_components/account-menu";
-import { isEvening, nightWindow, planNight } from "@/lib/timeline";
+import { isEvening, nightWindow, planNight, type NightHours } from "@/lib/timeline";
 import { useTabCountdown } from "./use-tab-countdown";
 import { useNow } from "./use-now";
 import type { LucideIcon } from "lucide-react";
@@ -84,7 +84,7 @@ export function LiveDashboard({
   profile?: ReactNode;
 }) {
   const now = useNow();
-  const [nightHours] = useNightHours();
+  const [nightHours] = useNightHours(village.savedNight);
   // "Tonight" sits below the upgrade lists, and moves above them in the hours
   // before the viewer's bedtime. Until the clock is known (SSR) it stays below.
   const evening = now !== null && isEvening(now, -new Date().getTimezoneOffset(), nightHours);
@@ -153,14 +153,38 @@ export function LiveDashboard({
       tone,
       Icon,
       finish: u.currentFinishTime,
-      // Helpers work on home-village builder upgrades and lab research only
-      helper:
-        u.villageType !== "HOME" ? null : u.category === "BUILDER" ? "builder" : u.category === "LABORATORY" ? "lab" : null,
+      helper: helperSlot(u.category, u.villageType),
       extra: u.isExtraSlot,
     };
   });
   const boostEndsAt = { builder: village.builderBoostEndsAt, lab: village.labBoostEndsAt };
-  const tonight = <TonightCard now={now} rows={tonightRows} helpers={village.helpers} boostEndsAt={boostEndsAt} />;
+  // Owners' night also goes to the server, so the bedtime check follows the picker
+  const saveNight =
+    isOwner && !demo
+      ? (night: NightHours) => {
+          void fetch("/api/village/notifications", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tag: village.playerTag,
+              night,
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }),
+          }).catch(() => {
+            // Best effort: the picker still works locally
+          });
+        }
+      : undefined;
+  const tonight = (
+    <TonightCard
+      now={now}
+      rows={tonightRows}
+      helpers={village.helpers}
+      boostEndsAt={boostEndsAt}
+      savedNight={village.savedNight}
+      onNightChange={saveNight}
+    />
+  );
 
   // ── Next moves, most urgent first (the card shows the top few) ──
   // One update button is enough: later moves that need it just say so in words
@@ -203,10 +227,9 @@ export function LiveDashboard({
       const plan = planNight(tonightRows, night, now);
       const bedtime = planBedtime(tonightRows, night, now, village.helpers, boostEndsAt);
       // Best single fix: a helper, then staying up, then a potion (costs one)
-      const rank = { helper: 0, stayUp: 1, potion: 2 } as const;
       const best = plan.overnight
         .flatMap(({ item }) => (bedtime.fixes[item.id] ?? []).map((fix) => ({ item, fix })))
-        .sort((a, b) => rank[a.fix.kind] - rank[b.fix.kind])[0];
+        .sort((a, b) => FIX_RANK[a.fix.kind] - FIX_RANK[b.fix.kind])[0];
       const labelOf = (id: string) => tonightRows.find((r) => r.id === id)?.label ?? null;
       if (plan.overnight.length > 0) {
         moves.push({
@@ -378,6 +401,8 @@ export function LiveDashboard({
                 dmOn={village.dmAlerts}
                 leadMinutes={village.alertLeadMinutes}
                 idleReminders={village.idleReminders}
+                bedtimeCheck={village.bedtimeCheck}
+                savedNight={village.savedNight}
                 dmAvailable={ownership.dmAvailable}
               />
             </div>

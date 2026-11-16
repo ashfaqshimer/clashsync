@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type { Helpers } from "./bedtime";
+import type { NightHours } from "./timeline";
 import { boosts, upgrades, villages } from "@/lib/db/schema";
 import type { PotionKind } from "@/lib/boosts";
 import type { VillageOwnership } from "@/lib/ownership";
@@ -37,6 +38,10 @@ export interface VillageSnapshot {
   alertLeadMinutes: number;
   /** "Anything sitting idle?" nudge an hour after an upgrade finishes with no re-sync. */
   idleReminders: boolean;
+  /** Message an hour before bedtime when something would sit idle overnight. */
+  bedtimeCheck: boolean;
+  /** The owner's night as saved on the server; null until they set it or turn the check on. */
+  savedNight: NightHours | null;
   builderBoostEndsAt: number | null;
   labBoostEndsAt: number | null;
   /** Builder's Apprentice / Lab Assistant as of the latest export. */
@@ -130,6 +135,8 @@ export async function getVillage(tag: string): Promise<LoadedVillage | null> {
     dmAlerts: row.dmAlerts,
     alertLeadMinutes: row.alertLeadMinutes,
     idleReminders: row.idleReminders,
+    bedtimeCheck: row.bedtimeCheck,
+    savedNight: row.timeZone ? { startHour: row.nightStartHour, endHour: row.nightEndHour } : null,
     builderBoostEndsAt: row.builderBoostEndsAt,
     labBoostEndsAt: row.labBoostEndsAt,
     helpers: {
