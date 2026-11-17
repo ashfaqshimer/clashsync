@@ -145,20 +145,18 @@ export function parseVillageExport(rawJson: string): ParseResult {
     processSection(data as RawVillageItem[], "items");
   }
 
-  // A builder potion running at export time: `boosts.builder_boost` is the
-  // seconds of boost left. Timers are normal-speed work, so pull finishes in.
-  const builderBoostSeconds = Number(data.boosts?.builder_boost ?? 0);
-  const builderBoostEndsAt =
-    builderBoostSeconds > 0 ? exportTimestamp + builderBoostSeconds : undefined;
-  if (builderBoostEndsAt) {
-    const { multiplier } = POTIONS.BUILDER_POTION;
+  // Potions running at export time: `boosts.builder_boost` / `boosts.lab_boost`
+  // are the seconds of boost left. Timers are normal-speed work, so pull
+  // finishes in for the home-village upgrades each potion speeds up.
+  const applyRunningBoost = (seconds: number, potion: (typeof POTIONS)[keyof typeof POTIONS]) => {
+    if (!(seconds > 0)) return undefined;
     for (const u of upgrades) {
-      if (u.category !== "BUILDER" || u.villageType !== "HOME") continue;
+      if (u.category !== potion.category || u.villageType !== "HOME") continue;
       u.currentFinishTime = boostedFinishTime(
         u.originalFinishTime,
         exportTimestamp,
-        multiplier,
-        builderBoostSeconds
+        potion.multiplier,
+        seconds
       );
       u.formattedRemaining = formatDuration(u.currentFinishTime - exportTimestamp);
       u.formattedFinishTime = new Date(u.currentFinishTime * 1000).toLocaleString(undefined, {
@@ -166,7 +164,16 @@ export function parseVillageExport(rawJson: string): ParseResult {
         timeStyle: "short",
       });
     }
-  }
+    return exportTimestamp + seconds;
+  };
+  const builderBoostEndsAt = applyRunningBoost(
+    Number(data.boosts?.builder_boost ?? 0),
+    POTIONS.BUILDER_POTION
+  );
+  const labBoostEndsAt = applyRunningBoost(
+    Number(data.boosts?.lab_boost ?? 0),
+    POTIONS.RESEARCH_POTION
+  );
 
   // Builder's Huts are grouped by level (`cnt` per entry); a hut that is being
   // upgraded gets its own entry with a `timer` and no `cnt`, so sum them all.
@@ -219,6 +226,7 @@ export function parseVillageExport(rawJson: string): ParseResult {
     builderBaseUpgradesCount,
     builderHutCount,
     builderBoostEndsAt,
+    labBoostEndsAt,
     helpers,
     upgrades,
   };

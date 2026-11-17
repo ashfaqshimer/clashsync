@@ -70,16 +70,19 @@ export async function POST(request: NextRequest) {
     }
     const claimFor = access.shouldClaim ? (access.viewer?.id ?? null) : null;
 
-    // The export is the source of truth for builder boosts. It has no
-    // research-boost field, so a Research Potion applied in the app that is
-    // still running at export time is kept and re-applied to lab timers.
-    const runningLabBoost =
-      existingVillages[0]?.labBoostEndsAt && existingVillages[0].labBoostEndsAt > exportTimestamp
+    // The export is the source of truth for boosts: the parser already applied
+    // `boosts.builder_boost` / `boosts.lab_boost`. When the export reports no
+    // lab boost, a Research Potion applied in the app that is still running at
+    // export time is kept and re-applied to lab timers.
+    const appLabBoost =
+      !parseResult.labBoostEndsAt &&
+      existingVillages[0]?.labBoostEndsAt &&
+      existingVillages[0].labBoostEndsAt > exportTimestamp
         ? existingVillages[0].labBoostEndsAt
         : null;
     const boostFields = {
       builderBoostEndsAt: parseResult.builderBoostEndsAt ?? null,
-      labBoostEndsAt: runningLabBoost,
+      labBoostEndsAt: parseResult.labBoostEndsAt ?? appLabBoost,
     };
     const { builder: apprentice, lab: labAssistant } = parseResult.helpers ?? {};
     const helperFields = {
@@ -93,7 +96,7 @@ export async function POST(request: NextRequest) {
         ? finishWithRunningBoost(
             item.currentFinishTime,
             exportTimestamp,
-            runningLabBoost,
+            appLabBoost,
             POTIONS.RESEARCH_POTION.multiplier
           )
         : item.currentFinishTime;

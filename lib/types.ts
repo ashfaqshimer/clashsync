@@ -65,6 +65,7 @@ export interface ParseResult {
   builderBaseUpgradesCount: number;
   builderHutCount?: number; // Home village Builder's Huts, if the export lists them
   builderBoostEndsAt?: number; // Unix seconds, when a builder potion was running at export
+  labBoostEndsAt?: number; // Unix seconds, when a research potion was running at export
   /** Builder's Apprentice / Lab Assistant level and when each can next be used (Unix seconds). */
   helpers?: Partial<Record<"builder" | "lab", { level: number; readyAt: number }>>;
   upgrades: ActiveUpgrade[];

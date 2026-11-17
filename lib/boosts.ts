@@ -86,9 +86,8 @@ export function nextBoostWindow(
 /**
  * Finish time of an export timer when a potion is still running at export
  * time. Export timers are normal-speed work, so the rest of the boost window
- * (from the export until `boostEndsAt`) still applies. Used for the builder
- * boost the export reports and for a Research Potion the app recorded (the
- * export has no research-boost field).
+ * (from the export until `boostEndsAt`) still applies. Used for a Research
+ * Potion the app recorded when the export reports no `lab_boost`.
  */
 export function finishWithRunningBoost(
   finishTime: number,

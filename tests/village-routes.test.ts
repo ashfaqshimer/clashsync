@@ -142,6 +142,26 @@ describe("POST /api/village/sync", () => {
     expect(cannon.currentFinishTime).toBe(cannon.originalFinishTime); // builders untouched
   });
 
+  it("takes a running Research Potion from the export's lab_boost", async () => {
+    const t = now();
+    await sync(post("/api/village/sync", { rawJson: exportJson(t, { boosts: { lab_boost: 1200 } }) }));
+    const [cannon, lab] = await currentUpgrades();
+    expect((await village()).labBoostEndsAt).toBe(t + 1200);
+    expect(lab.currentFinishTime).toBe(t + 86400 - 23 * 1200); // applied once, not twice
+    expect(cannon.currentFinishTime).toBe(cannon.originalFinishTime);
+  });
+
+  it("prefers the export's lab_boost over one recorded in the app", async () => {
+    await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
+    const t = now();
+    await testDb.update(villages).set({ labBoostEndsAt: t + 3000 }).where(eq(villages.playerTag, TAG));
+
+    await sync(post("/api/village/sync", { rawJson: exportJson(t, { boosts: { lab_boost: 600 } }) }));
+    const [, lab] = await currentUpgrades();
+    expect((await village()).labBoostEndsAt).toBe(t + 600);
+    expect(lab.currentFinishTime).toBe(t + 86400 - 23 * 600);
+  });
+
   it("drops a Research Potion that ended before the export", async () => {
     await sync(post("/api/village/sync", { rawJson: exportJson(now()) }));
     const t = now();

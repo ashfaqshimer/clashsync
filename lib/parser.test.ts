@@ -196,6 +196,25 @@ describe("parseVillageExport", () => {
     }
   });
 
+  it("applies a running research potion to home lab upgrades only", () => {
+    // `boosts.lab_boost` = seconds of Research Potion left (24×): 30 min saves 23 × 30m
+    const r = parse({
+      timestamp: TS,
+      boosts: { lab_boost: 1800 },
+      buildings: [{ data: 1000008, lvl: 1, timer: 2 * 86400 }],
+      units: [{ data: 4000000, lvl: 1, timer: 2 * 86400 }],
+      units2: [{ data: 4000031, lvl: 1, timer: 2 * 86400 }],
+    });
+    expect(r.labBoostEndsAt).toBe(TS + 1800);
+    expect(r.builderBoostEndsAt).toBeUndefined();
+    const lab = r.upgrades.find((u) => u.category === "LABORATORY")!;
+    expect(lab.originalFinishTime).toBe(TS + 2 * 86400);
+    expect(lab.currentFinishTime).toBe(TS + 2 * 86400 - 23 * 1800);
+    for (const u of r.upgrades.filter((u) => u !== lab)) {
+      expect(u.currentFinishTime).toBe(u.originalFinishTime);
+    }
+  });
+
   it("uses only the boost time left at export", () => {
     // 10 minutes of potion left: saves 9 × 10m
     const r = parse({
